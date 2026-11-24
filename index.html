@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Lab Meccanica Manager</title>
+  <link rel="manifest" href="./manifest.json" />
+  <meta name="theme-color" content="#1e3a8a" />
+  <style>
+    :root {
+      --primary: #1e3a8a;
+      --primary-light: #3b82f6;
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --danger: #dc2626;
+      --danger-bg: #fef2f2;
+      --warn: #d97706;
+      --warn-bg: #fffbeb;
+      --ok: #16a34a;
+      --ok-bg: #f0fdf4;
+    }
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--text); padding-bottom: 80px; }
+    
+    /* TOPBAR */
+    header {
+      background: var(--primary); color: #fff; padding: 12px 16px;
+      display: flex; justify-content: space-between; align-items: center;
+      position: sticky; top: 0; z-index: 50; box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+    header h1 { margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; }
+    .header-controls { display: flex; gap: 8px; align-items: center; }
+    select, input, textarea, button {
+      font-size: 0.95rem; border-radius: 8px; border: 1px solid var(--border); padding: 8px 10px;
+    }
+    header select { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3); font-weight: 600; }
+    header select option { color: #000; }
+    
+    /* NAVIGAZIONE */
+    nav.tabs {
+      display: flex; overflow-x: auto; background: #fff; border-bottom: 1px solid var(--border);
+      position: sticky; top: 52px; z-index: 40;
+    }
+    nav.tabs button {
+      flex: 1; min-width: 110px; border: none; border-radius: 0; background: transparent;
+      padding: 12px 8px; font-weight: 600; color: var(--muted); cursor: pointer;
+      border-bottom: 3px solid transparent; white-space: nowrap;
+    }
+    nav.tabs button.active { color: var(--primary); border-bottom-color: var(--primary); background: #eff6ff; }
+
+    /* CONTAINER & CARDS */
+    .container { max-width: 1100px; margin: 16px auto; padding: 0 12px; }
+    .card {
+      background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06); border: 1px solid var(--border);
+    }
+    .card h2 { margin: 0 0 12px 0; font-size: 1.05rem; color: var(--primary); }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+
+    /* BUTTONS & BADGES */
+    .btn { cursor: pointer; font-weight: 600; border: none; transition: 0.15s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-ok { background: var(--ok); color: #fff; }
+    .btn-outline { background: #fff; border: 1px solid var(--border); color: var(--text); }
+    .btn-sm { padding: 5px 9px; font-size: 0.82rem; }
+    .badge { padding: 3px 8px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; }
+    .badge-red { background: var(--danger-bg); color: var(--danger); border: 1px solid #fecaca; }
+    .badge-green { background: var(--ok-bg); color: var(--ok); border: 1px solid #bbf7d0; }
+    .badge-amber { background: var(--warn-bg); color: var(--warn); border: 1px solid #fde68a; }
+
+    /* LISTA STUDENTI OFFICINA */
+    .student-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px; border-bottom: 1px solid var(--border); gap: 8px;
+    }
+    .student-item:last-child { border-bottom: none; }
+    .student-name { font-weight: 700; font-size: 1rem; }
+    .student-meta { font-size: 0.82rem; color: var(--muted); }
+    .quick-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .tag-btn {
+      background: var(--danger-bg); color: var(--danger); border: 1px solid #fca5a5;
+      padding: 7px 10px; border-radius: 8px; font-size: 0.84rem; font-weight: 600; cursor: pointer;
+    }
+    .tag-btn:active { transform: scale(0.96); background: var(--danger); color: #fff; }
+
+    /* GRIGLIA DIPARTIMENTO INTERATTIVA */
+    .rubric-box { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+    .rubric-title { font-weight: 700; margin-bottom: 8px; color: var(--primary); }
+    .rubric-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 8px; }
+    .rubric-opt {
+      border: 2px solid var(--border); border-radius: 8px; padding: 8px; cursor: pointer;
+      background: #f8fafc; text-align: left; transition: 0.12s;
+    }
+    .rubric-opt.selected { border-color: var(--primary); background: #eff6ff; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+    .rubric-opt strong { display: block; font-size: 1.05rem; color: var(--primary); }
+    .rubric-opt span { font-size: 0.78rem; color: #334155; display: block; margin-top: 3px; line-height: 1.25; }
+
+    /* LOGIN SCREEN */
+    #login-screen {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+    }
+    .login-card { background: #fff; padding: 32px; border-radius: 16px; max-width: 400px; width: 100%; text-align: center; }
+
+    /* TOAST */
+    #toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: #0f172a; color: #fff; padding: 10px 18px; border-radius: 999px;
+      font-weight: 600; font-size: 0.9rem; z-index: 999; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    }
+
+    /* MODAL */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(15,23,42,0.6); z-index: 100;
+      display: none; align-items: center; justify-content: center; padding: 12px; overflow-y: auto;
+    }
+    .modal {
+      background: #fff; border-radius: 14px; max-width: 720px; width: 100%; max-height: 92vh;
+      overflow-y: auto; padding: 18px;
+    }
+
+    /* AREA DI STAMPA / PDF UFFICIALE GRIGLIA */
+    #print-area { display: none; }
+    @media print {
+      body * { visibility: hidden; }
+      #print-area, #print-area * { visibility: visible; }
+      #print-area {
+        display: block !important; position: absolute; left: 0; top: 0; width: 100%;
+        padding: 15mm; background: #fff; color: #000;
+      }
+      table.print-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 10.5pt; }
+      table.print-table th, table.print-table td { border: 1px solid #000; padding: 7px; text-align: left; }
+      table.print-table th { background: #e2e8f0 !important; -webkit-print-color-adjust: exact; }
+      .highlight-cell { background: #dbeafe !important; font-weight: bold; -webkit-print-color-adjust: exact; }
+    }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <!-- SCHERMATA LOGIN PRIVATO -->
+  <div id="login-screen">
+    <div class="login-card">
+      <h2 style="margin-top:0; color:#1e3a8a;">⚙️ Lab Meccanica Manager</h2>
+      <p style="color:#64748b; font-size:0.92rem;">Registro Privato Officina, Griglia Dipartimento &amp; CdC</p>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-top:20px;">
+        <button id="btn-login-google" class="btn btn-primary" style="padding:12px;">Accedi con Google</button>
+        <button id="btn-login-github" class="btn btn-outline" style="padding:12px;">Accedi con GitHub</button>
+      </div>
+      <p id="login-error" style="color:#dc2626; font-size:0.85rem; margin-top:12px;"></p>
+    </div>
+  </div>
+
+  <!-- APPLICAZIONE PRINCIPALE -->
+  <div id="app-shell" class="hidden">
+    <header>
+      <h1>⚙️ LabMecc</h1>
+      <div class="header-controls">
+        <select id="select-year" title="Anno Scolastico"></select>
+        <select id="select-class" title="Classe"></select>
+        <select id="select-group" title="Sottogruppo Laboratorio">
+          <option value="ALL">Tutta la classe</option>
+          <option value="Gruppo A">Gruppo A</option>
+          <option value="Gruppo B">Gruppo B</option>
+        </select>
+        <button id="btn-logout" class="btn btn-sm" style="background:rgba(255,255,255,0.2); color:#fff;">Esci</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="active" data-tab="tab-officina">⚡ Officina (1-Tap)</button>
+      <button data-tab="tab-valutazioni">📋 Griglia &amp; Voti</button>
+      <button data-tab="tab-prove">🎯 Prove Minime</button>
+      <button data-tab="tab-cdc">📊 CdC &amp; Assenze</button>
+      <button data-tab="tab-lezioni">🛠️ Schede Lezione</button>
+      <button data-tab="tab-classi">👥 Classi &amp; Promozioni</button>
+    </nav>
+
+    <div class="container">
+      <!-- TAB 1: OFFICINA RAPIDA (NEGATIVI / OSSERVAZIONI) -->
+      <section id="tab-officina" class="tab-panel">
+        <div class="card">
+          <div class="row" style="justify-content:space-between;">
+            <div class="row">
+              <label><strong>Materia attiva:</strong></label>
+              <select id="officina-subject">
+                <option value="Tecnologia">Tecnologia (Fine Pezzo)</option>
+                <option value="Sistemi">Sistemi (Verifica Sommativa)</option>
+                <option value="Disegno">Disegno (Fine Commessa)</option>
+              </select>
+            </div>
+            <input type="text" id="search-student" placeholder="🔍 Filtra cognome..." style="max-width:200px;" />
+          </div>
+          <p style="font-size:0.82rem; color:var(--muted); margin:8px 0 0 0;">
+            Tocca uno studente per assegnare un negativo rapido o aprire la Griglia di Dipartimento.
+          </p>
+        </div>
+        <div class="card" id="officina-student-list">
+          <p style="color:var(--muted);">Caricamento studenti...</p>
+        </div>
+      </section>
+
+      <!-- TAB 2: VALUTAZIONI CON GRIGLIA DIPARTIMENTO -->
+      <section id="tab-valutazioni" class="tab-panel hidden">
+        <div class="card">
+          <div class="row" style="justify-content:space-between;">
+            <h2>Valutazioni Registrate (Griglia Dipartimento 3 + 5 + 2)</h2>
+            <div class="row">
+              <select id="filter-eval-subject">
+                <option value="ALL">Tutte le materie</option>
+                <option value="Tecnologia">Tecnologia</option>
+                <option value="Sistemi">Sistemi</option>
+                <option value="Disegno">Disegno</option>
+              </select>
+              <button class="btn btn-primary btn-sm" id="btn-open-new-eval">+ Nuova Valutazione</button>
+            </div>
+          </div>
+          <div id="evaluations-list" style="margin-top:12px;"></div>
+        </div>
+      </section>
+
+      <!-- TAB 3: PIANO PROVE MINIME -->
+      <section id="tab-prove" class="tab-panel hidden">
+        <div class="card">
+          <h2>Programma Prove Minime per Classe</h2>
+          <div class="row" style="margin-bottom:12px;">
+            <select id="plan-subject">
+              <option value="Tecnologia">Tecnologia</option>
+              <option value="Sistemi">Sistemi</option>
+              <option value="Disegno">Disegno</option>
+            </select>
+            <select id="plan-term">
+              <option value="1° Quadrimestre">1° Quadrimestre</option>
+              <option value="2° Quadrimestre">2° Quadrimestre</option>
+            </select>
+            <input type="text" id="plan-title" placeholder="Titolo prova (es. Perno filettato)" style="flex:1; min-width:180px;" />
+            <input type="date" id="plan-date" />
+            <button class="btn btn-primary" id="btn-add-plan">Aggiungi Prova</button>
+          </div>
+          <div id="planned-list"></div>
+        </div>
+      </section>
+
+      <!-- TAB 4: CONSIGLIO DI CLASSE & IMPORT ASSENZE -->
+      <section id="tab-cdc" class="tab-panel hidden">
+        <div class="card">
+          <h2>Importa Assenze da Mastercom (Copia-Incolla)</h2>
+          <p style="font-size:0.85rem; color:var(--muted);">
+            Incolla righe nel formato: <code>Cognome Nome; OreAssenza; TurniLabPersi</code> (es. <code>Rossi Marco; 8; 2</code>)
+          </p>
+          <textarea id="cdc-import-text" rows="4" style="width:100%; margin-bottom:8px;" placeholder="Rossi Marco; 6; 2&#10;Bianchi Luca; 2; 0"></textarea>
+          <div class="row">
+            <input type="text" id="cdc-label" placeholder="Etichetta (es. CdC Novembre)" value="CdC Corrente" />
+            <button class="btn btn-primary" id="btn-import-absences">Importa e Incrocia Dati</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Quadro Sinottico per Consiglio di Classe (Voti + Negativi + Assenze)</h2>
+          <div id="cdc-summary-table" style="overflow-x:auto;"></div>
+        </div>
+      </section>
+
+      <!-- TAB 5: SCHEDE PREPARAZIONE LEZIONE -->
+      <section id="tab-lezioni" class="tab-panel hidden">
+        <div class="card">
+          <h2>Nuova Scheda Preparazione Lezione ("Zero Improvvisazione")</h2>
+          <div class="grid-2">
+            <input type="text" id="lp-title" placeholder="Titolo esercitazione (es. Staffa fresata)" />
+            <div class="row">
+              <select id="lp-grade">
+                <option value="3">Classe 3ª (3 Torni + 2 Saldatrici)</option>
+                <option value="4">Classe 4ª (3 Torni + 1 Fresatrice)</option>
+                <option value="5">Classe 5ª (CNC / CAD / Pneumatica)</option>
+              </select>
+              <select id="lp-subject">
+                <option value="Tecnologia">Tecnologia</option>
+                <option value="Sistemi">Sistemi</option>
+                <option value="Disegno">Disegno</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid-2" style="margin-top:10px;">
+            <textarea id="lp-raw" rows="2" placeholder="1. Grezzi e materiali da preparare prima della campanella..."></textarea>
+            <textarea id="lp-tools" rows="2" placeholder="2. Utensili, inserti e strumenti di misura sul banco..."></textarea>
+            <textarea id="lp-briefing" rows="2" placeholder="3. I 3 punti critici da dire nei primi 3 minuti..."></textarea>
+            <textarea id="lp-overflow" rows="2" placeholder="4. Compito autonomo (zero assistenza) per i 2-3 studenti senza macchina..."></textarea>
+          </div>
+          <button class="btn btn-primary" id="btn-save-lp" style="margin-top:10px;">Salva Scheda Lezione</button>
+        </div>
+        <div id="lesson-plans-list"></div>
+      </section>
+
+      <!-- TAB 6: GESTIONE CLASSI, STUDENTI & PROMOZIONI -->
+      <section id="tab-classi" class="tab-panel hidden">
+        <div class="grid-2">
+          <div class="card">
+            <h2>1. Crea Anno Scolastico / Classe</h2>
+            <div class="row" style="margin-bottom:10px;">
+              <input type="text" id="new-year-label" placeholder="Anno (es. 2026/2027)" style="flex:1;" />
+              <button class="btn btn-outline" id="btn-create-year">+ Anno</button>
+            </div>
+            <div class="row">
+              <input type="text" id="new-class-name" placeholder="Nome Classe (es. 3A)" style="width:130px;" />
+              <select id="new-class-grade">
+                <option value="3">3ª (3 Torni + 2 Sald.)</option>
+                <option value="4">4ª (3 Torni + 1 Fresa)</option>
+                <option value="5">5ª</option>
+              </select>
+              <button class="btn btn-primary" id="btn-create-class">+ Crea Classe</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>2. Importa Elenco Studenti nella Classe Attiva</h2>
+            <p style="font-size:0.82rem; color:var(--muted); margin-top:0;">
+              Un nominativo per riga: <code>Cognome Nome</code> (opzionale <code>; Gruppo A</code> o <code>; Gruppo B</code>)
+            </p>
+            <textarea id="bulk-students-text" rows="4" style="width:100%; margin-bottom:8px;" placeholder="Rossi Marco; Gruppo A&#10;Verdi Giulia; Gruppo B"></textarea>
+            <button class="btn btn-primary" id="btn-bulk-students">Importa Studenti</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>3. Promozione Annuale Classe (3ª &rarr; 4ª &rarr; 5ª)</h2>
+          <p style="font-size:0.85rem; color:var(--muted);">
+            Promuove tutti gli studenti attivi della classe selezionata in una nuova classe dell'anno successivo mantenendo tutto lo storico triennale.
+          </p>
+          <div class="row">
+            <select id="promote-target-year"></select>
+            <input type="text" id="promote-new-class-name" placeholder="Nuova classe (es. 4A)" />
+            <button class="btn btn-ok" id="btn-promote-class">Promuovi Intera Classe</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- MODALE VALUTAZIONE CON GRIGLIA DI DIPARTIMENTO -->
+  <div id="eval-modal-backdrop" class="modal-backdrop">
+    <div class="modal">
+      <div class="row" style="justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:10px;">
+        <h2 style="margin:0;">Valutazione - Griglia Dipartimento</h2>
+        <button class="btn btn-outline btn-sm" id="btn-close-eval-modal">✕ Chiudi</button>
+      </div>
+
+      <div class="grid-2" style="margin-top:12px;">
+        <div>
+          <label><strong>Studente</strong></label>
+          <select id="eval-student-select" style="width:100%; margin-top:4px;"></select>
+        </div>
+        <div>
+          <label><strong>Materia</strong></label>
+          <select id="eval-subject-select" style="width:100%; margin-top:4px;">
+            <option value="Tecnologia">Tecnologia (Fine Pezzo)</option>
+            <option value="Sistemi">Sistemi (Verifica Sommativa)</option>
+            <option value="Disegno">Disegno (Fine Commessa)</option>
+          </select>
+        </div>
+        <div>
+          <label><strong>Titolo Prova / Pezzo / Commessa</strong></label>
+          <input type="text" id="eval-title-input" placeholder="Es. Perno filettato M12" style="width:100%; margin-top:4px;" />
+        </div>
+        <div>
+          <label><strong>Quadrimestre &amp; Data</strong></label>
+          <div class="row" style="margin-top:4px;">
+            <select id="eval-term-select" style="flex:1;">
+              <option value="1° Quadrimestre">1° Quad.</option>
+              <option value="2° Quadrimestre">2° Quad.</option>
+            </select>
+            <input type="date" id="eval-date-input" style="flex:1;" />
+          </div>
+        </div>
+      </div>
+
+      <!-- RIEPILOGO AUTOMATICO NEGATIVI DELLO STUDENTE -->
+      <div id="eval-negatives-box" class="card" style="background:var(--warn-bg); border-color:#fde68a; margin-top:12px; padding:10px;">
+        <strong>⚠️ Negativi registrati in laboratorio per questo studente:</strong>
+        <div id="eval-negatives-list" style="font-size:0.85rem; margin-top:4px;">Nessuno</div>
+      </div>
+
+      <!-- INDICATORE 1: COMPETENZE (MAX 3) -->
+      <div class="rubric-box">
+        <div class="rubric-title">1. Competenze (interpretazione disegni, norme sicurezza, cicli e parametri di taglio) — Max 3.0</div>
+        <div class="rubric-options" data-group="competenze">
+          <div class="rubric-opt" data-val="0.6" data-desc="Inesistenti. Molto lacunose e frammentarie."><strong>0.6</strong><span>Inesistenti / molto lacunose</span></div>
+          <div class="rubric-opt" data-val="1.1" data-desc="Lacunose, superficiali."><strong>1.1</strong><span>Lacunose, superficiali</span></div>
+          <div class="rubric-opt selected" data-val="1.7" data-desc="Semplici, ma adeguate, non sempre precise, sufficientemente estese."><strong>1.7</strong><span>Semplici, ma adeguate</span></div>
+          <div class="rubric-opt" data-val="2.4" data-desc="Precise ed esaurienti."><strong>2.4</strong><span>Precise ed esaurienti</span></div>
+          <div class="rubric-opt" data-val="3.0" data-desc="Complete ed approfondite."><strong>3.0</strong><span>Complete ed approfondite</span></div>
+        </div>
+      </div>
+
+      <!-- INDICATORE 2: ABILITÀ (MAX 5) -->
+      <div class="rubric-box">
+        <div class="rubric-title">2. Abilità (uso strumentazione, macchine utensili, CAD/software, autonomia) — Max 5.0</div>
+        <div class="rubric-options" data-group="abilita">
+          <div class="rubric-opt" data-val="1.0" data-desc="Molto lacunose e frammentarie. Quasi inesistenti anche con assistenza."><strong>1.0</strong><span>Quasi inesistenti anche con aiuto</span></div>
+          <div class="rubric-opt" data-val="1.4" data-desc="Superficiali e imprecise: necessita di continua assistenza."><strong>1.4</strong><span>Necessita continua assistenza</span></div>
+          <div class="rubric-opt selected" data-val="3.1" data-desc="Semplici, ma adeguate: necessita di saltuari aiuti."><strong>3.1</strong><span>Adeguate, saltuari aiuti</span></div>
+          <div class="rubric-opt" data-val="4.0" data-desc="Precise ed esaurienti: possiede notevole autonomia."><strong>4.0</strong><span>Notevole autonomia</span></div>
+          <div class="rubric-opt" data-val="5.0" data-desc="Complete ed approfondite: del tutto autonomo."><strong>5.0</strong><span>Del tutto autonomo</span></div>
+        </div>
+      </div>
+
+      <!-- INDICATORE 3: CONOSCENZE (MAX 2) -->
+      <div class="rubric-box">
+        <div class="rubric-title">3. Conoscenze (tecniche di misura, programmazione, controllo, parametri di taglio) — Max 2.0</div>
+        <div class="rubric-options" data-group="conoscenze">
+          <div class="rubric-opt" data-val="0.3" data-desc="Inesistenti. Molto lacunose e frammentarie."><strong>0.3</strong><span>Inesistenti / frammentarie</span></div>
+          <div class="rubric-opt" data-val="0.6" data-desc="Limitate, superficiali e mnemoniche."><strong>0.6</strong><span>Limitate, superficiali</span></div>
+          <div class="rubric-opt selected" data-val="1.2" data-desc="Estese, semplici, con qualche carenza, ma adeguate."><strong>1.2</strong><span>Semplici, adeguate</span></div>
+          <div class="rubric-opt" data-val="1.6" data-desc="Precise ed esaurienti."><strong>1.6</strong><span>Precise ed esaurienti</span></div>
+          <div class="rubric-opt" data-val="2.0" data-desc="Complete ed approfondite."><strong>2.0</strong><span>Complete ed approfondite</span></div>
+        </div>
+      </div>
+
+      <div class="card" style="background:#f8fafc;">
+        <div class="row" style="justify-content:space-between;">
+          <div>
+            <div>Somma Griglia: <strong id="eval-sum-display" style="font-size:1.2rem;">6.0</strong> / 10</div>
+            <div style="font-size:0.85rem; color:var(--muted);">Voto arrotondato Mastercom: <strong id="eval-mastercom-display" style="color:var(--primary); font-size:1.1rem;">6.00</strong></div>
+          </div>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="eval-synced-checkbox" />
+            <span>Già inserito su Mastercom</span>
+          </label>
+        </div>
+        <textarea id="eval-notes-input" rows="2" placeholder="Note aggiuntive / motivazione sintetica..." style="width:100%; margin-top:8px;"></textarea>
+      </div>
+
+      <div class="row" style="justify-content:flex-end; gap:10px;">
+        <button class="btn btn-outline" id="btn-print-preview">🖨️ Salva &amp; Stampa PDF Ufficiale</button>
+        <button class="btn btn-primary" id="btn-save-eval">💾 Salva Valutazione</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AREA NASCOSTA PER GENERAZIONE PDF / STAMPA UFFICIALE ANTI-RICORSO -->
+  <div id="print-area"></div>
+
+  <div id="toast"></div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
