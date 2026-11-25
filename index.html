@@ -153,6 +153,35 @@
     }
     textarea { min-height: 90px; resize: vertical; font-size: 14px; }
 
+    /* Selettore classe a pulsanti */
+    .class-btn-group {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .class-btn {
+      padding: 11px 8px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--input-bg);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+    .class-btn:hover {
+      border-color: var(--accent);
+    }
+    .class-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 2px 10px rgba(10, 132, 255, 0.35);
+    }
+
     .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .sign-row { display: flex; gap: 10px; margin-top: 6px; }
     .sign-btn {
@@ -300,7 +329,9 @@
     }
 
     .alunno-badge {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
       margin-left: 6px;
       padding: 2px 7px;
       border-radius: 999px;
@@ -397,7 +428,7 @@
 
     .meta-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
       gap: 10px;
       margin-bottom: 12px;
     }
@@ -440,7 +471,7 @@
       left: 0;
       background: var(--card);
       z-index: 2;
-      min-width: 175px;
+      min-width: 185px;
       border-right: 2px solid var(--border);
       box-shadow: 4px 0 8px rgba(0,0,0,0.45);
     }
@@ -478,14 +509,15 @@
       .card { padding: 14px; }
       .meta-grid { grid-template-columns: 1fr; }
       .flag-grid { grid-template-columns: 1fr; }
+      .class-btn { padding: 10px 6px; font-size: 13px; }
       th, td {
         padding: 8px 8px;
         min-width: 72px;
         font-size: 12px;
       }
       th:first-child, td:first-child {
-        min-width: 132px;
-        max-width: 160px;
+        min-width: 136px;
+        max-width: 168px;
         font-size: 12px;
       }
       .grid-open-btn {
@@ -723,12 +755,12 @@
       <h2>A-Classi</h2>
 
       <label>Classe</label>
-      <select id="s-classe" onchange="loadAlunni('s-classe', 's-alunno', 's-status')">
-        <option value="">-- Seleziona classe --</option>
-        <option value="3AM">3AM</option>
-        <option value="4AM">4AM</option>
-        <option value="5AM">5AM</option>
-      </select>
+      <div id="s-classe-btns" class="class-btn-group">
+        <button type="button" class="class-btn" data-cl="3AM" onclick="selectClasse('singolo', '3AM')">3AM</button>
+        <button type="button" class="class-btn" data-cl="4AM" onclick="selectClasse('singolo', '4AM')">4AM</button>
+        <button type="button" class="class-btn" data-cl="5AM" onclick="selectClasse('singolo', '5AM')">5AM</button>
+      </div>
+      <input type="hidden" id="s-classe" value="">
 
       <label>Alunno</label>
       <select id="s-alunno" onchange="renderSingoloAlunnoSupporto()">
@@ -763,12 +795,12 @@
       <div class="meta-grid">
         <div>
           <label>Classe</label>
-          <select id="v-classe" onchange="loadVerificaGrid()">
-            <option value="">-- Seleziona classe --</option>
-            <option value="3AM">3AM</option>
-            <option value="4AM">4AM</option>
-            <option value="5AM">5AM</option>
-          </select>
+          <div id="v-classe-btns" class="class-btn-group">
+            <button type="button" class="class-btn" data-cl="3AM" onclick="selectClasse('verifica', '3AM')">3AM</button>
+            <button type="button" class="class-btn" data-cl="4AM" onclick="selectClasse('verifica', '4AM')">4AM</button>
+            <button type="button" class="class-btn" data-cl="5AM" onclick="selectClasse('verifica', '5AM')">5AM</button>
+          </div>
+          <input type="hidden" id="v-classe" value="">
         </div>
 
         <div>
@@ -828,12 +860,12 @@
       <div style="text-align:center;"><span id="p-mode-pill" class="pill">SOLA LETTURA</span></div>
 
       <label>Seleziona classe (una alla volta)</label>
-      <select id="p-classe" onchange="loadProspetto()">
-        <option value="">-- Seleziona 3AM, 4AM o 5AM --</option>
-        <option value="3AM">3AM</option>
-        <option value="4AM">4AM</option>
-        <option value="5AM">5AM</option>
-      </select>
+      <div id="p-classe-btns" class="class-btn-group" style="max-width:520px;">
+        <button type="button" class="class-btn" data-cl="3AM" onclick="selectClasse('prospetto', '3AM')">3AM</button>
+        <button type="button" class="class-btn" data-cl="4AM" onclick="selectClasse('prospetto', '4AM')">4AM</button>
+        <button type="button" class="class-btn" data-cl="5AM" onclick="selectClasse('prospetto', '5AM')">5AM</button>
+      </div>
+      <input type="hidden" id="p-classe" value="">
 
       <div id="p-toolbar" class="toolbar hidden">
         <button id="p-toggle-edit" type="button" class="sec-btn" onclick="toggleEditMode()">🔓 Attiva Elimina</button>
@@ -859,11 +891,12 @@
       <div class="ind-sub" style="margin-top:0;">Utile per aggiungere nuovi iscritti o trasferiti durante l'anno nella classe attiva.</div>
 
       <label>Classe di destinazione</label>
-      <select id="c-classe">
-        <option value="3AM">3AM</option>
-        <option value="4AM">4AM</option>
-        <option value="5AM">5AM</option>
-      </select>
+      <div id="c-classe-btns" class="class-btn-group">
+        <button type="button" class="class-btn active" data-cl="3AM" onclick="selectClasse('classi', '3AM')">3AM</button>
+        <button type="button" class="class-btn" data-cl="4AM" onclick="selectClasse('classi', '4AM')">4AM</button>
+        <button type="button" class="class-btn" data-cl="5AM" onclick="selectClasse('classi', '5AM')">5AM</button>
+      </div>
+      <input type="hidden" id="c-classe" value="3AM">
 
       <label>Nomi e cognomi (uno per riga)</label>
       <textarea id="c-nomi" placeholder="Rossi Mario&#10;Bianchi Luca&#10;Verdi Giulia"></textarea>
@@ -929,19 +962,19 @@
         <div class="flag-grid">
           <label id="sm-lbl-dsa-dislessia" class="flag-item">
             <input type="checkbox" id="sm-dsa-dislessia">
-            <span>Dislessia</span>
+            <span>📖 Dislessia</span>
           </label>
           <label id="sm-lbl-dsa-disortografia" class="flag-item">
             <input type="checkbox" id="sm-dsa-disortografia">
-            <span>Disortografia</span>
+            <span>✍️ Disortografia</span>
           </label>
           <label id="sm-lbl-dsa-disgrafia" class="flag-item">
             <input type="checkbox" id="sm-dsa-disgrafia">
-            <span>Disgrafia</span>
+            <span>🖊️ Disgrafia</span>
           </label>
           <label id="sm-lbl-dsa-discalculia" class="flag-item">
             <input type="checkbox" id="sm-dsa-discalculia">
-            <span>Discalculia</span>
+            <span>🧮 Discalculia</span>
           </label>
         </div>
       </div>
@@ -1081,14 +1114,14 @@
       };
     }
 
-    function getDsaDisturbiList(alunno) {
+    function getDsaDisturbiItems(alunno) {
       if (!alunno || alunno.profilo_tipo !== "dsa") return [];
-      const list = [];
-      if (alunno.dsa_dislessia) list.push("Dislessia");
-      if (alunno.dsa_disortografia) list.push("Disortografia");
-      if (alunno.dsa_disgrafia) list.push("Disgrafia");
-      if (alunno.dsa_discalculia) list.push("Discalculia");
-      return list;
+      const items = [];
+      if (alunno.dsa_dislessia) items.push({ icon: "📖", label: "Dislessia" });
+      if (alunno.dsa_disortografia) items.push({ icon: "✍️", label: "Disortografia" });
+      if (alunno.dsa_disgrafia) items.push({ icon: "🖊️", label: "Disgrafia" });
+      if (alunno.dsa_discalculia) items.push({ icon: "🧮", label: "Discalculia" });
+      return items;
     }
 
     function getAlunnoBadgeInfo(alunno) {
@@ -1096,9 +1129,11 @@
         return null;
       }
       if (alunno.profilo_tipo === "dsa") {
-        const dist = getDsaDisturbiList(alunno);
-        const shortText = dist.length > 0 ? `DSA (${dist.join(", ")})` : "DSA";
-        const fullText = `DSA • PDP${dist.length > 0 ? " — " + dist.join(", ") : ""}`;
+        const items = getDsaDisturbiItems(alunno);
+        const iconsText = items.map(it => it.icon).join(" ");
+        const namesText = items.map(it => it.label).join(", ");
+        const shortText = items.length > 0 ? `DSA ${iconsText}` : "DSA";
+        const fullText = `DSA • PDP${items.length > 0 ? ` — ${namesText} (${iconsText})` : ""}`;
         return { cssClass: "badge-dsa", shortText, fullText };
       }
       if (alunno.profilo_tipo === "104") {
@@ -1127,6 +1162,38 @@
       const noteTitle = alunno.note_supporto ? ` — ${alunno.note_supporto}` : "";
       const safeTitle = `${info.fullText}${noteTitle}`.replace(/"/g, "&quot;");
       return `<span class="alunno-badge ${info.cssClass}" title="${safeTitle}">${info.shortText}</span>`;
+    }
+
+    /* Gestione pulsanti classe per sezione */
+    function setClasseButtonsActive(groupId, codiceClasse) {
+      const group = document.getElementById(groupId);
+      if (!group) return;
+      group.querySelectorAll(".class-btn").forEach(btn => {
+        btn.classList.toggle("active", Boolean(codiceClasse) && btn.getAttribute("data-cl") === codiceClasse);
+      });
+    }
+
+    async function selectClasse(sezione, codiceClasse) {
+      if (sezione === "singolo") {
+        const input = document.getElementById("s-classe");
+        const nextVal = input.value === codiceClasse ? "" : codiceClasse;
+        input.value = nextVal;
+        setClasseButtonsActive("s-classe-btns", nextVal);
+        await loadAlunni("s-classe", "s-alunno", "s-status");
+      } else if (sezione === "verifica") {
+        document.getElementById("v-classe").value = codiceClasse;
+        setClasseButtonsActive("v-classe-btns", codiceClasse);
+        await loadVerificaGrid();
+      } else if (sezione === "prospetto") {
+        const input = document.getElementById("p-classe");
+        const nextVal = input.value === codiceClasse ? "" : codiceClasse;
+        input.value = nextVal;
+        setClasseButtonsActive("p-classe-btns", nextVal);
+        await loadProspetto();
+      } else if (sezione === "classi") {
+        document.getElementById("c-classe").value = codiceClasse;
+        setClasseButtonsActive("c-classe-btns", codiceClasse);
+      }
     }
 
     function formatVotoMastercom(num) {
@@ -2232,6 +2299,7 @@
 
       activeVerificaColId = col.id;
       document.getElementById("v-classe").value = ultimoProspettoData.cl;
+      setClasseButtonsActive("v-classe-btns", ultimoProspettoData.cl);
       if (col.data_evento) {
         document.getElementById("v-data").value = col.data_evento;
       }
