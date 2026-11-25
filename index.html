@@ -104,7 +104,25 @@
     }
     .narrow { max-width: 520px; margin: 0 auto; }
     h2 { margin: 0 0 8px; font-size: 18px; text-align: center; }
-    h3 { margin: 18px 0 6px; font-size: 14px; color: var(--warning); }
+    h3 { margin: 22px 0 6px; font-size: 14px; color: var(--warning); }
+
+    .section-divider {
+      margin: 22px 0 14px;
+      border: none;
+      border-top: 1px solid var(--border);
+    }
+    .danger-zone {
+      margin-top: 12px;
+      padding: 14px;
+      border-radius: 12px;
+      background: rgba(255, 69, 58, 0.06);
+      border: 1px solid rgba(255, 69, 58, 0.35);
+    }
+    .danger-panel {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed rgba(255, 69, 58, 0.35);
+    }
 
     label {
       display: block;
@@ -183,7 +201,8 @@
       cursor: pointer;
     }
     .primary-btn.warn { background: var(--warning); color: #121212; }
-    .primary-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .primary-btn.danger-btn { background: var(--neg); color: #fff; }
+    .primary-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
     .toolbar {
       display: flex;
@@ -674,10 +693,10 @@
       <button id="tab-verifica" onclick="showTab('verifica')">Caricamento Verifica</button>
       <button id="tab-prospetto" onclick="showTab('prospetto')">Prospetto</button>
       <button id="tab-alunni" onclick="showTab('alunni')">Scheda Alunni</button>
-      <button id="tab-classi" onclick="showTab('classi')">Classi &amp; Anno</button>
+      <button id="tab-classi" onclick="showTab('classi')">Gestione &amp; Anno</button>
     </div>
 
-    <!-- 1. A-CLASSI -->
+    <!-- 1. A-CLASSI (USO QUOTIDIANO) -->
     <div id="view-singolo" class="card narrow">
       <h2>A-Classi</h2>
 
@@ -715,7 +734,7 @@
       <div id="s-status" class="status"></div>
     </div>
 
-    <!-- 2. CARICAMENTO VERIFICA -->
+    <!-- 2. CARICAMENTO VERIFICA (USO QUOTIDIANO) -->
     <div id="view-verifica" class="card hidden">
       <h2>Caricamento Verifica</h2>
 
@@ -781,7 +800,7 @@
       <div id="v-status" class="status"></div>
     </div>
 
-    <!-- 3. PROSPETTO IN SOLA LETTURA -->
+    <!-- 3. PROSPETTO IN SOLA LETTURA (USO QUOTIDIANO / CONSULTAZIONE) -->
     <div id="view-prospetto" class="card hidden">
       <h2>Prospetto Classe</h2>
       <div style="text-align:center;"><span id="p-mode-pill" class="pill">SOLA LETTURA</span></div>
@@ -889,13 +908,15 @@
       <div id="a-status" class="status"></div>
     </div>
 
-    <!-- 5. CLASSI & AVANZAMENTO ANNO SCOLASTICO -->
+    <!-- 5. GESTIONE & MANUTENZIONE ANNO SCOLASTICO -->
     <div id="view-classi" class="card narrow hidden">
-      <h2>Classi &amp; Anno Scolastico</h2>
+      <h2>Gestione &amp; Anno Scolastico</h2>
 
       <div id="anno-info" class="info-box">⏳ Caricamento anno attivo...</div>
 
-      <h3>Inserisci alunni nella classe attiva</h3>
+      <h3>Inserimento alunni (anche in corso d'anno)</h3>
+      <div class="ind-sub" style="margin-top:0;">Utile per aggiungere nuovi iscritti o trasferiti durante l'anno nella classe attiva.</div>
+
       <label>Classe di destinazione</label>
       <select id="c-classe">
         <option value="3AM">3AM</option>
@@ -908,15 +929,27 @@
 
       <button id="c-add-btn" class="primary-btn" onclick="addAlunniBatch()">AGGIUNGI ALUNNI ALLA CLASSE</button>
 
-      <h3>Scorrimento di fine anno</h3>
-      <div class="info-box">
-        Promuove <strong>3AM → 4AM</strong> e <strong>4AM → 5AM</strong>, segna la <strong>5AM</strong> come diplomati e crea una nuova <strong>3AM</strong> per la classe entrante, conservando lo storico dell'anno precedente.
+      <hr class="section-divider">
+
+      <div class="danger-zone">
+        <h3 style="margin-top:0;color:#ff8a84;">Scorrimento di fine anno (azione annuale)</h3>
+        <div class="info-box" style="margin-top:6px;">
+          Da eseguire <strong>una volta a fine anno</strong>: promuove <strong>3AM → 4AM</strong> e <strong>4AM → 5AM</strong>, segna la <strong>5AM</strong> come diplomati e crea una nuova <strong>3AM</strong>, conservando lo storico.
+        </div>
+
+        <label class="flag-item" style="margin-top:12px;background:#1a1616;border-color:rgba(255,69,58,0.45);">
+          <input type="checkbox" id="c-unlock-anno" onchange="toggleAnnoDangerPanel()">
+          <span>Sblocca funzioni di fine anno (evita clic per errore)</span>
+        </label>
+
+        <div id="c-anno-panel" class="danger-panel hidden">
+          <label>Etichetta nuovo anno scolastico</label>
+          <input type="text" id="c-nuovo-anno" placeholder="Es: 2027-2028">
+
+          <button id="c-avanza-btn" class="primary-btn danger-btn" onclick="avanzaAnno()">ESEGUI SCORRIMENTO ANNO</button>
+        </div>
       </div>
 
-      <label>Etichetta nuovo anno scolastico</label>
-      <input type="text" id="c-nuovo-anno" placeholder="Es: 2027-2028">
-
-      <button id="c-avanza-btn" class="primary-btn warn" onclick="avanzaAnno()">ESEGUI SCORRIMENTO ANNO</button>
       <div id="c-status" class="status"></div>
     </div>
   </div>
@@ -1209,8 +1242,23 @@
       await handleSession(data.session);
     });
 
+    function resetAnnoDangerLock() {
+      const cb = document.getElementById("c-unlock-anno");
+      const panel = document.getElementById("c-anno-panel");
+      if (cb) cb.checked = false;
+      if (panel) panel.classList.add("hidden");
+    }
+
+    function toggleAnnoDangerPanel() {
+      const unlocked = Boolean(document.getElementById("c-unlock-anno").checked);
+      document.getElementById("c-anno-panel").classList.toggle("hidden", !unlocked);
+    }
+
     function showTab(tab) {
       hideNuvola();
+      if (tab !== "classi") {
+        resetAnnoDangerLock();
+      }
       ["singolo", "verifica", "prospetto", "alunni", "classi"].forEach(t => {
         document.getElementById("view-" + t).classList.toggle("hidden", t !== tab);
         document.getElementById("tab-" + t).classList.toggle("active", t === tab);
@@ -1617,6 +1665,11 @@
     }
 
     async function avanzaAnno() {
+      if (!document.getElementById("c-unlock-anno").checked) {
+        alert("Sblocca prima la sezione di fine anno con l'apposita spunta.");
+        return;
+      }
+
       const nuovaEtichetta = document.getElementById("c-nuovo-anno").value.trim();
       const st = document.getElementById("c-status");
       const btn = document.getElementById("c-avanza-btn");
@@ -1627,8 +1680,10 @@
       }
 
       const annoAttuale = await getAnnoAttivo(true);
-      const ok = confirm(`Confermi lo scorrimento dall'anno ${annoAttuale.etichetta} al nuovo anno ${nuovaEtichetta}?`);
-      if (!ok) return;
+      const ok1 = confirm(`Confermi lo scorrimento dall'anno ${annoAttuale.etichetta} al nuovo anno ${nuovaEtichetta}?`);
+      if (!ok1) return;
+      const ok2 = confirm(`Ultima conferma: questa operazione chiude/archivia l'anno ${annoAttuale.etichetta} e promuove le classi al ${nuovaEtichetta}. Procedere?`);
+      if (!ok2) return;
 
       btn.disabled = true;
       st.innerText = "⏳ Scorrimento anno in corso...";
@@ -1640,6 +1695,7 @@
         if (error) throw new Error(error.message);
 
         annoAttivoCache = null;
+        resetAnnoDangerLock();
         await refreshAnnoBox();
         st.innerText = `✅ Anno aggiornato a ${nuovaEtichetta}!`;
       } catch (e) {
