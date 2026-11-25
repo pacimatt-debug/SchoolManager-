@@ -79,7 +79,7 @@
     }
     .nav button {
       flex: 1;
-      min-width: 105px;
+      min-width: 110px;
       padding: 10px 8px;
       border: none;
       border-radius: 9px;
@@ -151,7 +151,7 @@
       -webkit-appearance: none;
       appearance: none;
     }
-    textarea { min-height: 95px; resize: vertical; font-size: 14px; }
+    textarea { min-height: 90px; resize: vertical; font-size: 14px; }
 
     .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .sign-row { display: flex; gap: 10px; margin-top: 6px; }
@@ -206,11 +206,17 @@
 
     .toolbar {
       display: flex;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
       margin-top: 12px;
+    }
+    .toolbar-right {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
     }
     .sec-btn {
       padding: 9px 14px;
@@ -231,6 +237,11 @@
       border-color: var(--accent);
       background: rgba(10, 132, 255, 0.16);
       color: #70b5ff;
+    }
+    .sec-btn.sheet {
+      border-color: rgba(255, 159, 10, 0.55);
+      background: rgba(255, 159, 10, 0.14);
+      color: #ffb84d;
     }
     .grid-open-btn {
       padding: 6px 10px;
@@ -313,6 +324,17 @@
       background: rgba(48, 209, 88, 0.16);
       color: #69e287;
       border: 1px solid rgba(48, 209, 88, 0.45);
+    }
+
+    .alunno-name-link {
+      cursor: pointer;
+      text-decoration: underline;
+      text-decoration-color: rgba(255, 255, 255, 0.22);
+      text-underline-offset: 3px;
+    }
+    .alunno-name-link:hover {
+      color: #70b5ff;
+      text-decoration-color: var(--accent);
     }
 
     .support-banner {
@@ -463,7 +485,7 @@
       }
       th:first-child, td:first-child {
         min-width: 132px;
-        max-width: 155px;
+        max-width: 160px;
         font-size: 12px;
       }
       .grid-open-btn {
@@ -481,7 +503,7 @@
       }
     }
 
-    /* Nuvola (tooltip) su Annot. periodo */
+    /* Nuvola (tooltip) su Annot. periodo / note supporto */
     .nuvola-cell {
       position: relative;
       cursor: help;
@@ -542,7 +564,7 @@
       line-height: 1.45;
     }
 
-    /* Modale Griglia Dipartimento */
+    /* Modali */
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -564,6 +586,7 @@
       padding: 20px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.65);
     }
+    .modal-card.narrow-modal { max-width: 520px; }
     .ind-box {
       margin-top: 12px;
       padding: 12px;
@@ -692,7 +715,6 @@
       <button id="tab-singolo" class="active" onclick="showTab('singolo')">A-Classi</button>
       <button id="tab-verifica" onclick="showTab('verifica')">Caricamento Verifica</button>
       <button id="tab-prospetto" onclick="showTab('prospetto')">Prospetto</button>
-      <button id="tab-alunni" onclick="showTab('alunni')">Scheda Alunni</button>
       <button id="tab-classi" onclick="showTab('classi')">Gestione &amp; Anno</button>
     </div>
 
@@ -800,7 +822,7 @@
       <div id="v-status" class="status"></div>
     </div>
 
-    <!-- 3. PROSPETTO IN SOLA LETTURA (USO QUOTIDIANO / CONSULTAZIONE) -->
+    <!-- 3. PROSPETTO IN SOLA LETTURA (CON SCHEDA ALUNNO INTEGRATA) -->
     <div id="view-prospetto" class="card hidden">
       <h2>Prospetto Classe</h2>
       <div style="text-align:center;"><span id="p-mode-pill" class="pill">SOLA LETTURA</span></div>
@@ -815,7 +837,10 @@
 
       <div id="p-toolbar" class="toolbar hidden">
         <button id="p-toggle-edit" type="button" class="sec-btn" onclick="toggleEditMode()">🔓 Attiva Elimina</button>
-        <button type="button" class="sec-btn pdf" onclick="exportProspettoPdf()">📄 Esporta / Stampa PDF</button>
+        <div class="toolbar-right">
+          <button type="button" class="sec-btn sheet" onclick="openSchedaModal()">🪪 Scheda Alunno</button>
+          <button type="button" class="sec-btn pdf" onclick="exportProspettoPdf()">📄 Esporta / Stampa PDF</button>
+        </div>
       </div>
 
       <div id="p-status" class="status"></div>
@@ -824,91 +849,7 @@
       </div>
     </div>
 
-    <!-- 4. SCHEDA ALUNNI (DSA / 104 / BES & COERENZA) -->
-    <div id="view-alunni" class="card narrow hidden">
-      <h2>Scheda Alunni</h2>
-
-      <label>Classe</label>
-      <select id="a-classe" onchange="loadSchedaAlunni()">
-        <option value="">-- Seleziona classe --</option>
-        <option value="3AM">3AM</option>
-        <option value="4AM">4AM</option>
-        <option value="5AM">5AM</option>
-      </select>
-
-      <label>Alunno</label>
-      <select id="a-alunno" onchange="populateSchedaForm()">
-        <option value="">Scegli classe...</option>
-      </select>
-
-      <div id="a-form-wrap" class="hidden">
-        <label>Profilo di riferimento</label>
-        <div class="flag-grid">
-          <label class="flag-item">
-            <input type="radio" name="a-profilo" value="nessuno" onchange="syncSchedaCoerenza()">
-            <span>Nessuno</span>
-          </label>
-          <label class="flag-item">
-            <input type="radio" name="a-profilo" value="dsa" onchange="syncSchedaCoerenza()">
-            <span>DSA (PDP)</span>
-          </label>
-          <label class="flag-item">
-            <input type="radio" name="a-profilo" value="104" onchange="syncSchedaCoerenza()">
-            <span>Legge 104 (PEI)</span>
-          </label>
-          <label class="flag-item">
-            <input type="radio" name="a-profilo" value="bes" onchange="syncSchedaCoerenza()">
-            <span>BES (PDP)</span>
-          </label>
-        </div>
-
-        <div id="a-dsa-box" class="flag-group">
-          <div class="ind-title" style="margin-bottom:2px;">Disturbi DSA (solo se profilo = DSA)</div>
-          <div class="flag-grid">
-            <label id="lbl-dsa-dislessia" class="flag-item">
-              <input type="checkbox" id="a-dsa-dislessia">
-              <span>Dislessia</span>
-            </label>
-            <label id="lbl-dsa-disortografia" class="flag-item">
-              <input type="checkbox" id="a-dsa-disortografia">
-              <span>Disortografia</span>
-            </label>
-            <label id="lbl-dsa-disgrafia" class="flag-item">
-              <input type="checkbox" id="a-dsa-disgrafia">
-              <span>Disgrafia</span>
-            </label>
-            <label id="lbl-dsa-discalculia" class="flag-item">
-              <input type="checkbox" id="a-dsa-discalculia">
-              <span>Discalculia</span>
-            </label>
-          </div>
-        </div>
-
-        <div id="a-obiettivi-box" class="flag-group">
-          <div class="ind-title" style="margin-bottom:2px;">Obiettivi / Percorso</div>
-          <div id="a-obiettivi-note" class="ind-sub" style="margin-bottom:6px;"></div>
-          <div class="flag-grid">
-            <label id="lbl-obj-minimi" class="flag-item">
-              <input type="checkbox" id="a-obj-minimi" onchange="toggleObiettivo104('minimi')">
-              <span>Obiettivi minimi</span>
-            </label>
-            <label id="lbl-obj-diff" class="flag-item">
-              <input type="checkbox" id="a-obj-diff" onchange="toggleObiettivo104('differenziati')">
-              <span>Obiettivi differenziati</span>
-            </label>
-          </div>
-        </div>
-
-        <label>Note / Misure compensative o dispensative</label>
-        <textarea id="a-note" placeholder="Es: tempi aggiuntivi, formulario, lettura ad alta voce, supporto visivo..."></textarea>
-
-        <button id="a-save-btn" class="primary-btn" onclick="saveSchedaAlunno()">SALVA SCHEDA ALUNNO</button>
-      </div>
-
-      <div id="a-status" class="status"></div>
-    </div>
-
-    <!-- 5. GESTIONE & MANUTENZIONE ANNO SCOLASTICO -->
+    <!-- 4. GESTIONE & MANUTENZIONE ANNO SCOLASTICO -->
     <div id="view-classi" class="card narrow hidden">
       <h2>Gestione &amp; Anno Scolastico</h2>
 
@@ -951,6 +892,84 @@
       </div>
 
       <div id="c-status" class="status"></div>
+    </div>
+  </div>
+
+  <!-- MODALE SCHEDA ALUNNO (APERTA DAL PROSPETTO) -->
+  <div id="scheda-modal" class="modal-backdrop hidden">
+    <div class="modal-card narrow-modal">
+      <h2 id="sm-title">Scheda Alunno</h2>
+      <div id="sm-sub" class="ind-sub" style="text-align:center;"></div>
+
+      <label>Alunno della classe</label>
+      <select id="sm-alunno-select" onchange="populateSchedaModalForm()"></select>
+
+      <label>Profilo di riferimento</label>
+      <div class="flag-grid">
+        <label class="flag-item">
+          <input type="radio" name="sm-profilo" value="nessuno" onchange="syncSchedaModalCoerenza()">
+          <span>Nessuno</span>
+        </label>
+        <label class="flag-item">
+          <input type="radio" name="sm-profilo" value="dsa" onchange="syncSchedaModalCoerenza()">
+          <span>DSA (PDP)</span>
+        </label>
+        <label class="flag-item">
+          <input type="radio" name="sm-profilo" value="104" onchange="syncSchedaModalCoerenza()">
+          <span>Legge 104 (PEI)</span>
+        </label>
+        <label class="flag-item">
+          <input type="radio" name="sm-profilo" value="bes" onchange="syncSchedaModalCoerenza()">
+          <span>BES (PDP)</span>
+        </label>
+      </div>
+
+      <div id="sm-dsa-box" class="flag-group">
+        <div class="ind-title" style="margin-bottom:2px;">Disturbi DSA (solo se profilo = DSA)</div>
+        <div class="flag-grid">
+          <label id="sm-lbl-dsa-dislessia" class="flag-item">
+            <input type="checkbox" id="sm-dsa-dislessia">
+            <span>Dislessia</span>
+          </label>
+          <label id="sm-lbl-dsa-disortografia" class="flag-item">
+            <input type="checkbox" id="sm-dsa-disortografia">
+            <span>Disortografia</span>
+          </label>
+          <label id="sm-lbl-dsa-disgrafia" class="flag-item">
+            <input type="checkbox" id="sm-dsa-disgrafia">
+            <span>Disgrafia</span>
+          </label>
+          <label id="sm-lbl-dsa-discalculia" class="flag-item">
+            <input type="checkbox" id="sm-dsa-discalculia">
+            <span>Discalculia</span>
+          </label>
+        </div>
+      </div>
+
+      <div id="sm-obiettivi-box" class="flag-group">
+        <div class="ind-title" style="margin-bottom:2px;">Obiettivi / Percorso</div>
+        <div id="sm-obiettivi-note" class="ind-sub" style="margin-bottom:6px;"></div>
+        <div class="flag-grid">
+          <label id="sm-lbl-obj-minimi" class="flag-item">
+            <input type="checkbox" id="sm-obj-minimi" onchange="toggleModalObiettivo104('minimi')">
+            <span>Obiettivi minimi</span>
+          </label>
+          <label id="sm-lbl-obj-diff" class="flag-item">
+            <input type="checkbox" id="sm-obj-diff" onchange="toggleModalObiettivo104('differenziati')">
+            <span>Obiettivi differenziati</span>
+          </label>
+        </div>
+      </div>
+
+      <label>Note / Misure compensative o dispensative</label>
+      <textarea id="sm-note" placeholder="Es: tempi aggiuntivi, formulario, supporto visivo..."></textarea>
+
+      <div id="sm-status" class="status"></div>
+
+      <div class="row" style="margin-top:12px;">
+        <button type="button" class="sec-btn" style="flex:1;padding:12px;" onclick="closeSchedaModal()">Chiudi</button>
+        <button id="sm-save-btn" type="button" class="primary-btn" style="flex:2;margin-top:0;" onclick="saveSchedaModal()">SALVA SCHEDA</button>
+      </div>
     </div>
   </div>
 
@@ -1047,7 +1066,6 @@
     let appInitialized = false;
 
     let singoloIscrizioniMap = new Map();
-    let schedaIscrizioniMap = new Map();
 
     function normalizeAlunnoRecord(raw) {
       return {
@@ -1259,7 +1277,7 @@
       if (tab !== "classi") {
         resetAnnoDangerLock();
       }
-      ["singolo", "verifica", "prospetto", "alunni", "classi"].forEach(t => {
+      ["singolo", "verifica", "prospetto", "classi"].forEach(t => {
         document.getElementById("view-" + t).classList.toggle("hidden", t !== tab);
         document.getElementById("tab-" + t).classList.toggle("active", t === tab);
       });
@@ -1431,48 +1449,45 @@
       }
     }
 
-    function getSelectedProfiloScheda() {
-      const checked = document.querySelector('input[name="a-profilo"]:checked');
+    /* Modale Scheda Alunno dentro Prospetto */
+    function getSelectedModalProfilo() {
+      const checked = document.querySelector('input[name="sm-profilo"]:checked');
       return checked ? checked.value : "nessuno";
     }
 
-    function toggleObiettivo104(scelta) {
-      const profilo = getSelectedProfiloScheda();
-      if (profilo !== "104") {
-        document.getElementById("a-obj-minimi").checked = false;
-        document.getElementById("a-obj-diff").checked = false;
+    function toggleModalObiettivo104(scelta) {
+      if (getSelectedModalProfilo() !== "104") {
+        document.getElementById("sm-obj-minimi").checked = false;
+        document.getElementById("sm-obj-diff").checked = false;
         return;
       }
-      const minEl = document.getElementById("a-obj-minimi");
-      const diffEl = document.getElementById("a-obj-diff");
-      if (scelta === "minimi" && minEl.checked) {
-        diffEl.checked = false;
-      } else if (scelta === "differenziati" && diffEl.checked) {
-        minEl.checked = false;
-      }
+      const minEl = document.getElementById("sm-obj-minimi");
+      const diffEl = document.getElementById("sm-obj-diff");
+      if (scelta === "minimi" && minEl.checked) diffEl.checked = false;
+      else if (scelta === "differenziati" && diffEl.checked) minEl.checked = false;
     }
 
-    function syncSchedaCoerenza() {
-      const profilo = getSelectedProfiloScheda();
+    function syncSchedaModalCoerenza() {
+      const profilo = getSelectedModalProfilo();
       const isDsa = profilo === "dsa";
       const is104 = profilo === "104";
 
-      const dsaBox = document.getElementById("a-dsa-box");
+      const dsaBox = document.getElementById("sm-dsa-box");
       dsaBox.classList.toggle("disabled-box", !isDsa);
-      ["a-dsa-dislessia", "a-dsa-disortografia", "a-dsa-disgrafia", "a-dsa-discalculia"].forEach(id => {
+      ["sm-dsa-dislessia", "sm-dsa-disortografia", "sm-dsa-disgrafia", "sm-dsa-discalculia"].forEach(id => {
         const cb = document.getElementById(id);
-        const lbl = document.getElementById("lbl-" + id.replace("a-", ""));
+        const lbl = document.getElementById("sm-lbl-" + id.replace("sm-", ""));
         if (!isDsa) cb.checked = false;
         cb.disabled = !isDsa;
         if (lbl) lbl.classList.toggle("disabled-item", !isDsa);
       });
 
-      const objBox = document.getElementById("a-obiettivi-box");
-      const objNote = document.getElementById("a-obiettivi-note");
-      const minEl = document.getElementById("a-obj-minimi");
-      const diffEl = document.getElementById("a-obj-diff");
-      const lblMin = document.getElementById("lbl-obj-minimi");
-      const lblDiff = document.getElementById("lbl-obj-diff");
+      const objBox = document.getElementById("sm-obiettivi-box");
+      const objNote = document.getElementById("sm-obiettivi-note");
+      const minEl = document.getElementById("sm-obj-minimi");
+      const diffEl = document.getElementById("sm-obj-diff");
+      const lblMin = document.getElementById("sm-lbl-obj-minimi");
+      const lblDiff = document.getElementById("sm-lbl-obj-diff");
 
       if (!is104) {
         minEl.checked = false;
@@ -1493,131 +1508,115 @@
       }
     }
 
-    async function loadSchedaAlunni() {
-      const cl = document.getElementById("a-classe").value;
-      const sel = document.getElementById("a-alunno");
-      const wrap = document.getElementById("a-form-wrap");
-      const st = document.getElementById("a-status");
-
-      schedaIscrizioniMap.clear();
-      wrap.classList.add("hidden");
-      st.innerText = "";
-
-      if (!cl) {
-        sel.innerHTML = '<option value="">Scegli classe...</option>';
+    function openSchedaModal(preselectedAlunnoId = null) {
+      if (!ultimoProspettoData || !ultimoProspettoData.iscr || ultimoProspettoData.iscr.length === 0) {
+        alert("Seleziona prima una classe nel Prospetto.");
         return;
       }
+      const { cl, iscr } = ultimoProspettoData;
+      document.getElementById("sm-title").innerText = `Scheda Alunno — ${cl}`;
+      document.getElementById("sm-sub").innerText = "Gestione flag DSA / 104 / BES e note di supporto";
+      document.getElementById("sm-status").innerText = "";
 
-      st.innerText = "⏳ Caricamento alunni...";
-      try {
-        const classeAnnoId = await getClasseAnnoId(cl);
-        const iscr = await getIscrizioniClasse(classeAnnoId);
-        for (const item of iscr) {
-          schedaIscrizioniMap.set(String(item.alunni.id), item.alunni);
-        }
-        sel.innerHTML = '<option value="">-- Seleziona alunno --</option>' +
-          iscr.map(i => {
-            const b = getAlunnoBadgeInfo(i.alunni);
-            const tag = b ? ` [${b.shortText}]` : "";
-            return `<option value="${i.alunni.id}">${i.alunni.nome_cognome}${tag}</option>`;
-          }).join("");
-        st.innerText = "";
-      } catch (e) {
-        st.innerText = "❌ " + e.message;
+      const sel = document.getElementById("sm-alunno-select");
+      sel.innerHTML = iscr.map(i => {
+        const b = getAlunnoBadgeInfo(i.alunni);
+        const tag = b ? ` [${b.shortText}]` : "";
+        return `<option value="${i.alunni.id}">${i.alunni.nome_cognome}${tag}</option>`;
+      }).join("");
+
+      if (preselectedAlunnoId && iscr.some(i => String(i.alunni.id) === String(preselectedAlunnoId))) {
+        sel.value = String(preselectedAlunnoId);
+      } else {
+        sel.value = String(isc[0].alunni.id);
       }
+
+      populateSchedaModalForm();
+      document.getElementById("scheda-modal").classList.remove("hidden");
     }
 
-    function populateSchedaForm() {
-      const alunnoId = document.getElementById("a-alunno").value;
-      const wrap = document.getElementById("a-form-wrap");
-      document.getElementById("a-status").innerText = "";
+    function closeSchedaModal() {
+      document.getElementById("scheda-modal").classList.add("hidden");
+    }
 
-      if (!alunnoId || !schedaIscrizioniMap.has(String(alunnoId))) {
-        wrap.classList.add("hidden");
-        return;
-      }
+    function populateSchedaModalForm() {
+      const alunnoId = document.getElementById("sm-alunno-select").value;
+      document.getElementById("sm-status").innerText = "";
+      if (!ultimoProspettoData) return;
 
-      const al = schedaIscrizioniMap.get(String(alunnoId));
+      const found = ultimoProspettoData.iscr.find(i => String(i.alunni.id) === String(alunnoId));
+      const al = found ? found.alunni : normalizeAlunnoRecord({});
+
       const targetProfilo = al.profilo_tipo || "nessuno";
-      const radio = document.querySelector(`input[name="a-profilo"][value="${targetProfilo}"]`);
+      const radio = document.querySelector(`input[name="sm-profilo"][value="${targetProfilo}"]`);
       if (radio) radio.checked = true;
 
-      document.getElementById("a-dsa-dislessia").checked = Boolean(al.dsa_dislessia);
-      document.getElementById("a-dsa-disortografia").checked = Boolean(al.dsa_disortografia);
-      document.getElementById("a-dsa-disgrafia").checked = Boolean(al.dsa_disgrafia);
-      document.getElementById("a-dsa-discalculia").checked = Boolean(al.dsa_discalculia);
+      document.getElementById("sm-dsa-dislessia").checked = Boolean(al.dsa_dislessia);
+      document.getElementById("sm-dsa-disortografia").checked = Boolean(al.dsa_disortografia);
+      document.getElementById("sm-dsa-disgrafia").checked = Boolean(al.dsa_disgrafia);
+      document.getElementById("sm-dsa-discalculia").checked = Boolean(al.dsa_discalculia);
 
-      document.getElementById("a-obj-minimi").checked = al.tipo_obiettivi === "minimi";
-      document.getElementById("a-obj-diff").checked = al.tipo_obiettivi === "differenziati";
-      document.getElementById("a-note").value = al.note_supporto || "";
+      document.getElementById("sm-obj-minimi").checked = al.tipo_obiettivi === "minimi";
+      document.getElementById("sm-obj-diff").checked = al.tipo_obiettivi === "differenziati";
+      document.getElementById("sm-note").value = al.note_supporto || "";
 
-      syncSchedaCoerenza();
-      wrap.classList.remove("hidden");
+      syncSchedaModalCoerenza();
     }
 
-    async function saveSchedaAlunno() {
-      const alunnoId = document.getElementById("a-alunno").value;
-      const st = document.getElementById("a-status");
-      const btn = document.getElementById("a-save-btn");
+    async function saveSchedaModal() {
+      const alunnoId = document.getElementById("sm-alunno-select").value;
+      const st = document.getElementById("sm-status");
+      const btn = document.getElementById("sm-save-btn");
 
-      if (!alunnoId) {
-        alert("Seleziona un alunno.");
-        return;
-      }
+      if (!alunnoId || !ultimoProspettoData) return;
 
-      const profilo = getSelectedProfiloScheda();
+      const profilo = getSelectedModalProfilo();
       const isDsa = profilo === "dsa";
       const is104 = profilo === "104";
 
-      const dsaDislessia = isDsa && document.getElementById("a-dsa-dislessia").checked;
-      const dsaDisortografia = isDsa && document.getElementById("a-dsa-disortografia").checked;
-      const dsaDisgrafia = isDsa && document.getElementById("a-dsa-disgrafia").checked;
-      const dsaDiscalculia = isDsa && document.getElementById("a-dsa-discalculia").checked;
-
-      let tipoObiettivi = null;
-      if (is104) {
-        if (document.getElementById("a-obj-diff").checked) tipoObiettivi = "differenziati";
-        else if (document.getElementById("a-obj-minimi").checked) tipoObiettivi = "minimi";
-      }
-
-      const noteSupporto = document.getElementById("a-note").value.trim() || null;
+      const payload = {
+        profilo_tipo: profilo,
+        dsa_dislessia: isDsa && document.getElementById("sm-dsa-dislessia").checked,
+        dsa_disortografia: isDsa && document.getElementById("sm-dsa-disortografia").checked,
+        dsa_disgrafia: isDsa && document.getElementById("sm-dsa-disgrafia").checked,
+        dsa_discalculia: isDsa && document.getElementById("sm-dsa-discalculia").checked,
+        tipo_obiettivi: is104
+          ? (document.getElementById("sm-obj-diff").checked
+              ? "differenziati"
+              : (document.getElementById("sm-obj-minimi").checked ? "minimi" : null))
+          : null,
+        note_supporto: document.getElementById("sm-note").value.trim() || null
+      };
 
       btn.disabled = true;
-      st.innerText = "⏳ Salvataggio scheda...";
+      st.innerText = "⏳ Salvataggio...";
       try {
-        const payload = {
-          profilo_tipo: profilo,
-          dsa_dislessia: dsaDislessia,
-          dsa_disortografia: dsaDisortografia,
-          dsa_disgrafia: dsaDisgrafia,
-          dsa_discalculia: dsaDiscalculia,
-          tipo_obiettivi: tipoObiettivi,
-          note_supporto: noteSupporto
-        };
-
         const { error } = await sb
           .from("alunni")
           .update(payload)
           .eq("id", alunnoId);
         if (error) throw new Error(error.message);
 
-        if (schedaIscrizioniMap.has(String(alunnoId))) {
-          schedaIscrizioniMap.set(String(alunnoId), {
-            ...schedaIscrizioniMap.get(String(alunnoId)),
-            ...payload,
-            note_supporto: noteSupporto || ""
-          });
+        for (const item of ultimoProspettoData.iscr) {
+          if (String(item.alunni.id) === String(alunnoId)) {
+            item.alunni = {
+              ...item.alunni,
+              ...payload,
+              note_supporto: payload.note_supporto || ""
+            };
+          }
         }
 
-        const sel = document.getElementById("a-alunno");
+        const sel = document.getElementById("sm-alunno-select");
+        const updatedItem = ultimoProspettoData.iscr.find(i => String(i.alunni.id) === String(alunnoId));
         const opt = sel.querySelector(`option[value="${alunnoId}"]`);
-        const updatedAl = schedaIscrizioniMap.get(String(alunnoId));
-        if (opt && updatedAl) {
-          const b = getAlunnoBadgeInfo(updatedAl);
-          opt.textContent = `${updatedAl.nome_cognome}${b ? ` [${b.shortText}]` : ""}`;
+        if (opt && updatedItem) {
+          const b = getAlunnoBadgeInfo(updatedItem.alunni);
+          opt.textContent = `${updatedItem.alunni.nome_cognome}${b ? ` [${b.shortText}]` : ""}`;
         }
 
-        st.innerText = "✅ Scheda alunno salvata!";
+        renderProspettoTable();
+        st.innerText = "✅ Scheda salvata!";
       } catch (e) {
         st.innerText = "❌ Errore: " + e.message;
       } finally {
@@ -2347,7 +2346,7 @@
           }
           return "<td></td>";
         }).join("");
-        return `<tr><td><strong>${i.alunni.nome_cognome}</strong>${badgeHtml}</td>${cells}</tr>`;
+        return `<tr><td><strong class="alunno-name-link" title="Apri scheda alunno" onclick="openSchedaModal('${i.alunni.id}')">${i.alunni.nome_cognome}</strong>${badgeHtml}</td>${cells}</tr>`;
       }).join("");
 
       const footerCells = colList.map(c => `<td>${c.materia || ""}</td>`).join("");
