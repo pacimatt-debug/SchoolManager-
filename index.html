@@ -100,6 +100,7 @@
       border-radius: 15px;
       border: 1px solid var(--border);
       box-shadow: 0 4px 15px rgba(0,0,0,0.45);
+      max-width: 100%;
     }
     .narrow { max-width: 480px; margin: 0 auto; }
     h2 { margin: 0 0 8px; font-size: 18px; text-align: center; }
@@ -116,6 +117,8 @@
     }
     select, input[type="text"], input[type="date"], textarea {
       width: 100%;
+      max-width: 100%;
+      min-width: 0;
       margin-top: 5px;
       padding: 12px;
       border-radius: 10px;
@@ -124,6 +127,11 @@
       color: var(--text);
       font-size: 15px;
       font-family: inherit;
+    }
+    input[type="date"] {
+      display: block;
+      -webkit-appearance: none;
+      appearance: none;
     }
     textarea { min-height: 110px; resize: vertical; font-size: 14px; }
 
@@ -269,11 +277,17 @@
       gap: 10px;
       margin-bottom: 12px;
     }
+    .meta-grid > div {
+      min-width: 0;
+      max-width: 100%;
+    }
 
     .table-wrap {
       margin-top: 12px;
+      max-width: 100%;
       overflow-x: auto;
       overflow-y: visible;
+      -webkit-overflow-scrolling: touch;
       border-radius: 10px;
       border: 1px solid var(--border);
       background: var(--card);
@@ -304,6 +318,7 @@
       z-index: 2;
       min-width: 170px;
       border-right: 2px solid var(--border);
+      box-shadow: 4px 0 8px rgba(0,0,0,0.45);
     }
     th {
       background: #262629;
@@ -331,7 +346,36 @@
       margin-top: 0 !important;
       padding: 8px !important;
       font-size: 13px !important;
-      min-width: 96px;
+      min-width: 90px;
+    }
+
+    @media (max-width: 600px) {
+      body { padding: 10px; }
+      .card { padding: 14px; }
+      .meta-grid { grid-template-columns: 1fr; }
+      th, td {
+        padding: 8px 8px;
+        min-width: 72px;
+        font-size: 12px;
+      }
+      th:first-child, td:first-child {
+        min-width: 124px;
+        max-width: 140px;
+        font-size: 12px;
+      }
+      .grid-open-btn {
+        padding: 5px 7px;
+        font-size: 10.5px;
+      }
+      .cell-inp {
+        padding: 6px !important;
+        font-size: 12px !important;
+        min-width: 76px;
+      }
+      .proposta-badge {
+        padding: 3px 6px;
+        font-size: 12px;
+      }
     }
 
     /* Nuvola (tooltip) su Annot. periodo */
