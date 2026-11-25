@@ -28,6 +28,45 @@
     }
     .wrap { max-width: 1180px; margin: 0 auto; }
 
+    .auth-gate {
+      max-width: 460px;
+      margin: 48px auto;
+      background: var(--card);
+      padding: 24px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      text-align: center;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+    }
+    .auth-gate h1 { margin: 0 0 8px; font-size: 20px; }
+    .auth-gate p { margin: 0 0 16px; font-size: 13px; color: var(--muted); line-height: 1.45; }
+    .auth-err {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(255, 69, 58, 0.15);
+      border: 1px solid rgba(255, 69, 58, 0.5);
+      color: #ff9e99;
+      font-size: 12px;
+      line-height: 1.45;
+      text-align: left;
+    }
+
+    .topbar-session {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      padding: 6px 12px;
+      border-radius: 10px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
     .nav {
       display: flex;
       gap: 6px;
@@ -482,7 +521,21 @@
   </style>
 </head>
 <body>
-  <div class="wrap">
+  <!-- SCHERMATA DI ACCESSO / BLOCCO ACCOUNT -->
+  <div id="auth-gate" class="auth-gate">
+    <h1>SchoolManager</h1>
+    <p id="auth-msg">⏳ Reindirizzamento automatico ad accesso Google con account scolastico...</p>
+    <div id="auth-error" class="auth-err hidden"></div>
+    <button id="auth-retry-btn" type="button" class="primary-btn hidden" onclick="triggerGoogleLogin(true)">Riprova accesso con Google</button>
+  </div>
+
+  <!-- APPLICAZIONE PRINCIPALE (VISIBILE SOLO DOPO LOGIN CON ACCOUNT SCOLASTICO) -->
+  <div id="app-shell" class="wrap hidden">
+    <div class="topbar-session">
+      <span>Account attivo: <strong id="session-email"></strong></span>
+      <button type="button" class="sec-btn" onclick="signOutAccount()">Esci</button>
+    </div>
+
     <div class="nav">
       <button id="tab-singolo" class="active" onclick="showTab('singolo')">A-Classi</button>
       <button id="tab-verifica" onclick="showTab('verifica')">Caricamento Verifica</button>
@@ -708,6 +761,7 @@
   <script>
     const SUPABASE_URL = "https://dgdlldmskwkgummpdgnx.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_Yv8ob9MdEaYb9fcsavar8Q_nCLc0HX0";
+    const ALLOWED_EMAIL = "paci.matt@ittmarconiforli.edu.it";
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const QUICK_NEG_BY_MATERIA = {
@@ -738,9 +792,8 @@
     let grigliaPerAlunno = new Map();
     let activeModalIscId = null;
     let activeModalNome = "";
+    let appInitialized = false;
 
-    // Costruisce le opzioni della tendina Voto Mastercom da 1.00 a 10.00 a passi di 0.25
-    // con regola 7.25 -> 7+, 7.75 -> 8-, ecc.
     function formatVotoMastercom(num) {
       const q = Math.round(num * 4) / 4;
       const baseInt = Math.floor(q);
@@ -764,7 +817,62 @@
 
     const MASTERCOM_OPTIONS_HTML = buildMastercomOptionsHtml();
 
-    window.addEventListener("DOMContentLoaded", () => {
+    function showAuthError(message, showRetry = true) {
+      document.getElementById("app-shell").classList.add("hidden");
+      document.getElementById("auth-gate").classList.remove("hidden");
+      document.getElementById("auth-msg").innerText = "Accesso non completato.";
+      const errBox = document.getElementById("auth-error");
+      errBox.innerText = message;
+      errBox.classList.remove("hidden");
+      document.getElementById("auth-retry-btn").classList.toggle("hidden", !showRetry);
+    }
+
+    async function triggerGoogleLogin(manual = false) {
+      const attemptKey = "sm_google_oauth_attempt";
+      const now = Date.now();
+      const lastAttempt = Number(sessionStorage.getItem(attemptKey) || "0");
+
+      if (!manual && now - lastAttempt < 12000) {
+        showAuthError("Reindirizzamento Google in sospeso o interrotto. Usa il pulsante qui sotto per riprovare.");
+        return;
+      }
+
+      sessionStorage.setItem(attemptKey, String(now));
+      document.getElementById("auth-error").classList.add("hidden");
+      document.getElementById("auth-retry-btn").classList.add("hidden");
+      document.getElementById("auth-msg").innerText = "⏳ Reindirizzamento a Google per l'account scolastico...";
+
+      const redirectTo = window.location.origin + window.location.pathname;
+      const { error } = await sb.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+          queryParams: {
+            prompt: "select_account"
+          }
+        }
+      });
+
+      if (error) {
+        sessionStorage.removeItem(attemptKey);
+        showAuthError("Errore avvio login Google: " + error.message);
+      }
+    }
+
+    async function signOutAccount() {
+      sessionStorage.removeItem("sm_google_oauth_attempt");
+      annoAttivoCache = null;
+      await sb.auth.signOut();
+      document.getElementById("app-shell").classList.add("hidden");
+      document.getElementById("auth-gate").classList.remove("hidden");
+      document.getElementById("auth-error").classList.add("hidden");
+      document.getElementById("auth-msg").innerText = "⏳ Disconnessione in corso...";
+      await triggerGoogleLogin(true);
+    }
+
+    function initAppOnce() {
+      if (appInitialized) return;
+      appInitialized = true;
       renderQuickButtons();
       syncAnnotazioneUI();
       const oggi = new Date();
@@ -774,6 +882,47 @@
       document.getElementById("v-data").value = `${yyyy}-${mm}-${dd}`;
       refreshAnnoBox();
       window.addEventListener("scroll", hideNuvola, true);
+    }
+
+    async function handleSession(session) {
+      const email = session && session.user && session.user.email
+        ? session.user.email.trim().toLowerCase()
+        : "";
+
+      if (!email) {
+        document.getElementById("app-shell").classList.add("hidden");
+        document.getElementById("auth-gate").classList.remove("hidden");
+        await triggerGoogleLogin(false);
+        return;
+      }
+
+      if (email !== ALLOWED_EMAIL.toLowerCase()) {
+        sessionStorage.removeItem("sm_google_oauth_attempt");
+        await sb.auth.signOut();
+        showAuthError(
+          `L'account "${email}" non è autorizzato. È consentito solo l'account scolastico ${ALLOWED_EMAIL}.`
+        );
+        return;
+      }
+
+      sessionStorage.removeItem("sm_google_oauth_attempt");
+      document.getElementById("auth-gate").classList.add("hidden");
+      document.getElementById("app-shell").classList.remove("hidden");
+      document.getElementById("session-email").innerText = email;
+      initAppOnce();
+    }
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      sb.auth.onAuthStateChange((_event, session) => {
+        handleSession(session);
+      });
+
+      const { data, error } = await sb.auth.getSession();
+      if (error) {
+        showAuthError("Errore verifica sessione: " + error.message);
+        return;
+      }
+      await handleSession(data.session);
     });
 
     function showTab(tab) {
@@ -1032,7 +1181,6 @@
       }
     }
 
-    // Restituisce sia il totale punti che l'elenco dettagliato delle annotazioni del periodo
     function getAnnotazioniPeriodoDettaglio(iscId, materia, dataEvento) {
       if (!materia || !dataEvento) return { totale: 0, items: [] };
 
