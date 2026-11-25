@@ -221,7 +221,7 @@
       <button id="tab-classi" onclick="showTab('classi')">Classi &amp; Anno</button>
     </div>
 
-    <!-- 1. A-CLASSI (SOLO ANNOTAZIONI: + oppure - senza motivazione oppure pulsanti rapidi precompilati) -->
+    <!-- 1. A-CLASSI -->
     <div id="view-singolo" class="card narrow">
       <h2>A-Classi</h2>
 
@@ -258,7 +258,7 @@
       <div id="s-status" class="status"></div>
     </div>
 
-    <!-- 2. CARICAMENTO VERIFICA (GRIGLIA MULTI-STUDENTE) -->
+    <!-- 2. CARICAMENTO VERIFICA -->
     <div id="view-verifica" class="card hidden">
       <h2>Caricamento Verifica</h2>
 
@@ -311,7 +311,7 @@
       <div id="v-status" class="status"></div>
     </div>
 
-    <!-- 3. PROSPETTO IN SOLA LETTURA (UNA CLASSE ALLA VOLTA) -->
+    <!-- 3. PROSPETTO IN SOLA LETTURA -->
     <div id="view-prospetto" class="card hidden">
       <h2>Prospetto Classe</h2>
       <div style="text-align:center;"><span class="pill">SOLA LETTURA</span></div>
@@ -452,10 +452,13 @@
         .from("anni_scolastici")
         .select("id, etichetta")
         .eq("attivo", true)
-        .single();
-      if (error) throw new Error("Anno scolastico attivo non trovato: " + error.message);
-      annoAttivoCache = data;
-      return data;
+        .limit(1);
+      if (error) throw new Error("Errore lettura anno scolastico: " + error.message);
+      if (!data || data.length === 0) {
+        throw new Error("Nessun anno scolastico con attivo = true trovato (controlla tabella o RLS).");
+      }
+      annoAttivoCache = data[0];
+      return data[0];
     }
 
     async function refreshAnnoBox() {
@@ -483,9 +486,12 @@
         .select("id")
         .eq("anno_id", anno.id)
         .eq("codice", codiceClasse)
-        .single();
-      if (error) throw new Error("Classe " + codiceClasse + " non trovata per l'anno attivo.");
-      return data.id;
+        .limit(1);
+      if (error) throw new Error("Errore lettura classe " + codiceClasse + ": " + error.message);
+      if (!data || data.length === 0) {
+        throw new Error("Classe " + codiceClasse + " non trovata per l'anno " + anno.etichetta + ".");
+      }
+      return data[0].id;
     }
 
     async function getIscrizioniClasse(classeAnnoId) {
@@ -629,10 +635,11 @@
           .from("colonne_evento")
           .insert(colonnaPayload)
           .select("id")
-          .single();
+          .limit(1);
         if (colErr) throw new Error(colErr.message);
+        if (!col || col.length === 0) throw new Error("Inserimento colonna non restituito.");
 
-        regPayload.colonna_id = col.id;
+        regPayload.colonna_id = col[0].id;
         const { error: regErr } = await sb.from("registrazioni").insert(regPayload);
         if (regErr) throw new Error(regErr.message);
 
@@ -743,15 +750,16 @@
             descrizione_negativa: null
           })
           .select("id")
-          .single();
+          .limit(1);
         if (errVer) throw new Error(errVer.message);
+        if (!colVer || colVer.length === 0) throw new Error("Colonna verifica non creata.");
 
         const regs = [];
         for (const item of daSalvare) {
           if (item.voto) {
             regs.push({
               iscrizione_id: item.iscrizione_id,
-              colonna_id: colVer.id,
+              colonna_id: colVer[0].id,
               voto: item.voto,
               annotazione_punti: null
             });
@@ -769,12 +777,13 @@
                 descrizione_negativa: verso === "neg" ? item.desc : ""
               })
               .select("id")
-              .single();
+              .limit(1);
             if (errAnn) throw new Error(errAnn.message);
+            if (!colAnn || colAnn.length === 0) throw new Error("Colonna annotazione non creata.");
 
             regs.push({
               iscrizione_id: item.iscrizione_id,
-              colonna_id: colAnn.id,
+              colonna_id: colAnn[0].id,
               voto: null,
               annotazione_punti: item.annotazione_punti
             });
