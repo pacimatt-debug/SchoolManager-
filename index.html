@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SchoolManager - Lezioni e Valutazioni</title>
+  <title>SchoolManager - Foglio Classe e Griglie</title>
   <style>
     :root {
       --bg: #f4f6f9;
@@ -203,23 +203,6 @@
       font-size: 0.8rem;
     }
 
-    .student-item {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 12px;
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
-      margin-bottom: 8px;
-      background: var(--surface);
-    }
-
-    .student-name {
-      font-weight: 600;
-    }
-
     .student-meta {
       font-size: 0.8rem;
       color: var(--muted);
@@ -251,61 +234,46 @@
       border: 1px solid #fde68a;
     }
 
-    .quick-tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 8px;
-      padding-top: 8px;
-      border-top: 1px solid #f1f5f9;
-    }
-
-    .tag-btn {
-      font-size: 0.78rem;
-      padding: 4px 8px;
-      border-radius: 4px;
-      border: 1px solid #fecaca;
-      background: var(--danger-bg);
-      color: var(--danger);
-      cursor: pointer;
-    }
-
-    /* Calendario orizzontale */
-    .horizontal-calendar {
-      display: flex;
-      flex-direction: row;
-      gap: 12px;
+    /* Tabella stile foglio di calcolo */
+    .sheet-wrap {
       overflow-x: auto;
-      padding-bottom: 10px;
-      align-items: flex-start;
-    }
-
-    .calendar-day-col {
-      min-width: 300px;
-      max-width: 320px;
-      flex: 0 0 300px;
-      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px;
+      border-radius: 6px;
     }
 
-    .calendar-day-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 6px;
-      margin-bottom: 8px;
+    table.sheet-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+      background: var(--surface);
     }
 
-    .calendar-entry {
-      padding: 8px 0;
-      border-bottom: 1px solid #f1f5f9;
+    table.sheet-table th,
+    table.sheet-table td {
+      border-bottom: 1px solid #e2e8f0;
+      border-right: 1px solid #e2e8f0;
+      padding: 8px 10px;
+      vertical-align: top;
+      text-align: left;
     }
 
-    .calendar-entry:last-child {
-      border-bottom: none;
+    table.sheet-table th:last-child,
+    table.sheet-table td:last-child {
+      border-right: none;
+    }
+
+    table.sheet-table thead th {
+      background: #f8fafc;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+    }
+
+    .sheet-note-input {
+      width: 100%;
+      min-width: 170px;
+      font-size: 0.82rem;
+      padding: 5px 7px;
     }
 
     /* Modale griglia valutazione */
@@ -396,7 +364,7 @@
   <div id="login-screen">
     <div class="login-box">
       <h1>SchoolManager</h1>
-      <p>Accesso riservato al registro lezioni e valutazioni.</p>
+      <p>Foglio di classe, storico annuale e griglie di valutazione.</p>
       <button id="btn-login-google" class="btn btn-primary" style="width:100%;" type="button">
         Accedi con Google
       </button>
@@ -417,79 +385,132 @@
         </select>
       </div>
       <div class="row">
-        <input id="search-student" type="search" placeholder="Cerca cognome..." />
+        <input id="search-student" type="search" placeholder="Cerca alunno..." />
         <button id="btn-logout" class="btn btn-outline btn-sm" type="button">Esci</button>
       </div>
     </header>
 
     <nav class="tabs">
-      <button data-tab="tab-lessons-live" class="active" type="button">Lezioni (Officina / CAD)</button>
-      <button data-tab="tab-evaluations-cal" type="button">Valutazioni e Calendario</button>
-      <button data-tab="tab-extra" type="button">Consiglio di Classe e Prove</button>
+      <button data-tab="tab-sheet" class="active" type="button">Foglio Classe</button>
+      <button data-tab="tab-years-promotion" type="button">Anni e Passaggio Classe</button>
+      <button data-tab="tab-cdc-lessons" type="button">Consiglio di Classe e Lezioni</button>
     </nav>
 
     <main class="container">
 
-      <!-- PAGINA 1: LEZIONI (OFFICINA / CAD) -->
-      <section id="tab-lessons-live" class="tab-panel">
+      <!-- PAGINA 1: FOGLIO CLASSE COMPILABILE + GRIGLIA DIPARTIMENTO -->
+      <section id="tab-sheet" class="tab-panel">
         <div class="card">
           <div class="row" style="justify-content:space-between; margin-bottom:12px;">
             <div>
-              <h2 style="margin:0;">Annotazioni durante la Lezione</h2>
-              <div class="student-meta">Inserimento rapido annotazioni in officina o laboratorio CAD e apertura griglia di valutazione.</div>
+              <h2 style="margin:0;">Foglio di Classe</h2>
+              <div id="sheet-subtitle" class="student-meta">Compilazione diretta per alunno con voto calcolato solo da Griglia di Dipartimento.</div>
             </div>
             <div class="row">
-              <label for="officina-subject" class="student-meta">Ambito / Materia:</label>
+              <label for="officina-subject" class="student-meta">Materia:</label>
               <select id="officina-subject">
                 <option value="Tecnologia">Tecnologia</option>
                 <option value="Sistemi">Sistemi</option>
                 <option value="Disegno">Disegno</option>
-                <option value="CAD">CAD</option>
               </select>
-              <button id="btn-open-new-eval" class="btn btn-primary btn-sm" type="button">Nuova Valutazione</button>
+              <button id="btn-open-new-eval" class="btn btn-primary btn-sm" type="button">Compila Griglia</button>
             </div>
           </div>
 
-          <div id="officina-student-list"></div>
+          <div class="sheet-wrap">
+            <table class="sheet-table">
+              <thead>
+                <tr>
+                  <th>Alunno</th>
+                  <th>Gruppo</th>
+                  <th>Annotazioni / Note</th>
+                  <th>Griglia Dipartimento (C + A + K = Voto)</th>
+                  <th>Azioni</th>
+                </tr>
+              </thead>
+              <tbody id="class-sheet-body"></tbody>
+            </table>
+          </div>
         </div>
-      </section>
 
-      <!-- PAGINA 2: VALUTAZIONI E CALENDARIO ORIZZONTALE -->
-      <section id="tab-evaluations-cal" class="tab-panel hidden">
         <div class="card">
-          <div class="row" style="justify-content:space-between; margin-bottom:12px;">
-            <div>
-              <h2 style="margin:0;">Calendario Valutazioni e Annotazioni</h2>
-              <div class="student-meta">Vista cronologica orizzontale unica con voti e annotazioni di lezione, filtrabile per materia o studente.</div>
-            </div>
-            <div class="row">
-              <select id="filter-eval-subject">
-                <option value="ALL">Tutte le materie</option>
-                <option value="Tecnologia">Tecnologia</option>
-                <option value="Sistemi">Sistemi</option>
-                <option value="Disegno">Disegno</option>
-                <option value="CAD">CAD</option>
-              </select>
-              <select id="filter-eval-student">
-                <option value="ALL">Tutti gli studenti</option>
-              </select>
-              <select id="filter-eval-type">
-                <option value="ALL">Voti e Annotazioni</option>
-                <option value="EVALS">Solo Valutazioni</option>
-                <option value="OBS">Solo Annotazioni</option>
-              </select>
-              <button id="btn-open-new-eval-cal" class="btn btn-primary btn-sm" type="button">Inserisci Valutazione</button>
-            </div>
+          <div class="row" style="justify-content:space-between; margin-bottom:10px;">
+            <h2 style="margin:0;">Valutazioni Registrata da Griglia (Calendario Orizzontale)</h2>
+            <select id="filter-eval-subject">
+              <option value="ALL">Tutte le materie</option>
+              <option value="Tecnologia">Tecnologia</option>
+              <option value="Sistemi">Sistemi</option>
+              <option value="Disegno">Disegno</option>
+            </select>
           </div>
-
           <div id="evaluations-list"></div>
         </div>
       </section>
 
-      <!-- PAGINA 3: CONSIGLIO DI CLASSE, PROVE MINIME E SCHEDE LEZIONE -->
-      <section id="tab-extra" class="tab-panel hidden">
+      <!-- PAGINA 2: MEMORIA DEGLI ANNI E PASSAGGIO ALLA CLASSE SUCCESSIVA -->
+      <section id="tab-years-promotion" class="tab-panel hidden">
+        <div class="grid-2">
+          <div class="card">
+            <h2>Anni Scolastici</h2>
+            <div class="row" style="margin-bottom:12px;">
+              <input id="new-year-label" type="text" placeholder="Es. 2026/2027" />
+              <label class="row student-meta">
+                <input id="new-year-current" type="checkbox" checked />
+                Anno corrente
+              </label>
+              <button id="btn-create-year" class="btn btn-primary btn-sm" type="button">Crea Anno</button>
+            </div>
+            <div id="years-list"></div>
+          </div>
+
+          <div class="card">
+            <h2>Nuova Classe / Aggiungi Alunno</h2>
+            <div class="row" style="margin-bottom:12px;">
+              <input id="new-class-name" type="text" placeholder="Nome classe (es. 3AM)" style="width:140px;" />
+              <select id="new-class-grade">
+                <option value="1">1a</option>
+                <option value="2">2a</option>
+                <option value="3" selected>3a</option>
+                <option value="4">4a</option>
+                <option value="5">5a</option>
+              </select>
+              <button id="btn-create-class" class="btn btn-outline btn-sm" type="button">Crea Classe</button>
+            </div>
+
+            <div class="row">
+              <input id="new-student-lastname" type="text" placeholder="Cognome" />
+              <input id="new-student-firstname" type="text" placeholder="Nome" />
+              <select id="new-student-group">
+                <option value="Gruppo A">Gruppo A</option>
+                <option value="Gruppo B">Gruppo B</option>
+              </select>
+              <button id="btn-add-student" class="btn btn-primary btn-sm" type="button">Aggiungi Alunno</button>
+            </div>
+          </div>
+        </div>
+
         <div class="card">
-          <h2>Riepilogo Consiglio di Classe</h2>
+          <h2>Passaggio alla Classe Successiva (Promozione)</h2>
+          <p class="student-meta" style="margin:0 0 12px 0;">
+            Promuove gli alunni selezionati della classe corrente verso un anno scolastico e una classe di destinazione (es. 3AM -> 4AM), mantenendo intatto lo storico dell'anno precedente.
+          </p>
+          <div class="row" style="margin-bottom:12px;">
+            <label class="student-meta">Anno di destinazione:</label>
+            <select id="promote-target-year"></select>
+
+            <label class="student-meta">Classe di destinazione:</label>
+            <select id="promote-target-class"></select>
+
+            <button id="btn-promote-students" class="btn btn-primary btn-sm" type="button">Promuovi Selezionati</button>
+          </div>
+          <div id="promotion-students-list"></div>
+        </div>
+      </section>
+
+      <!-- PAGINA 3: CONSIGLIO DI CLASSE, PROVE MINIME E SCHEDE LEZIONE -->
+      <section id="tab-cdc-lessons" class="tab-panel hidden">
+        <div class="card">
+          <h2>Riepilogo Consiglio di Classe (Voti da Griglia)</h2>
           <div id="cdc-summary-table" style="overflow-x:auto; margin-bottom:16px;"></div>
 
           <h3>Importa Assenze da Registro</h3>
@@ -507,7 +528,6 @@
               <option value="Tecnologia">Tecnologia</option>
               <option value="Sistemi">Sistemi</option>
               <option value="Disegno">Disegno</option>
-              <option value="CAD">CAD</option>
             </select>
             <select id="plan-term">
               <option value="1° Quadrimestre">1° Quadrimestre</option>
@@ -529,7 +549,7 @@
     </main>
   </div>
 
-  <!-- Modale Griglia di Valutazione di Dipartimento -->
+  <!-- Modale Griglia di Dipartimento -->
   <div id="eval-modal-backdrop">
     <div class="modal-card">
       <div class="row" style="justify-content:space-between; margin-bottom:12px;">
@@ -543,12 +563,11 @@
           <select id="eval-student-select" style="width:100%;"></select>
         </div>
         <div>
-          <label class="student-meta">Materia / Ambito</label><br>
+          <label class="student-meta">Materia</label><br>
           <select id="eval-subject-select" style="width:100%;">
             <option value="Tecnologia">Tecnologia</option>
             <option value="Sistemi">Sistemi</option>
             <option value="Disegno">Disegno</option>
-            <option value="CAD">CAD</option>
           </select>
         </div>
         <div>
@@ -567,7 +586,7 @@
       <div class="grid-2" style="margin-bottom:12px;">
         <div>
           <label class="student-meta">Titolo prova / elaborato</label><br>
-          <input id="eval-title-input" type="text" style="width:100%;" placeholder="Es. Lavorazione al tornio o tavola CAD" />
+          <input id="eval-title-input" type="text" style="width:100%;" placeholder="Es. Prova pratica o disegno" />
         </div>
         <div>
           <label class="student-meta">Note docente</label><br>
@@ -578,33 +597,33 @@
       <div class="rubric-group">
         <div class="rubric-group-title">Competenze (max 3.0)</div>
         <div class="rubric-options" data-group="competenze">
-          <button type="button" class="rubric-opt" data-val="0.6">0.6 - Inesistenti</button>
-          <button type="button" class="rubric-opt" data-val="1.1">1.1 - Lacunose</button>
-          <button type="button" class="rubric-opt selected" data-val="1.7">1.7 - Adeguate</button>
-          <button type="button" class="rubric-opt" data-val="2.4">2.4 - Precise</button>
-          <button type="button" class="rubric-opt" data-val="3.0">3.0 - Complete</button>
+          <button type="button" class="rubric-opt" data-val="0.6">0.6</button>
+          <button type="button" class="rubric-opt" data-val="1.1">1.1</button>
+          <button type="button" class="rubric-opt selected" data-val="1.7">1.7</button>
+          <button type="button" class="rubric-opt" data-val="2.4">2.4</button>
+          <button type="button" class="rubric-opt" data-val="3.0">3.0</button>
         </div>
       </div>
 
       <div class="rubric-group">
         <div class="rubric-group-title">Abilità (max 5.0)</div>
         <div class="rubric-options" data-group="abilita">
-          <button type="button" class="rubric-opt" data-val="1.0">1.0 - Molto lacunose</button>
-          <button type="button" class="rubric-opt" data-val="1.4">1.4 - Superficiali</button>
-          <button type="button" class="rubric-opt selected" data-val="3.1">3.1 - Adeguate</button>
-          <button type="button" class="rubric-opt" data-val="4.0">4.0 - Precise</button>
-          <button type="button" class="rubric-opt" data-val="5.0">5.0 - Autonome</button>
+          <button type="button" class="rubric-opt" data-val="1.0">1.0</button>
+          <button type="button" class="rubric-opt" data-val="1.4">1.4</button>
+          <button type="button" class="rubric-opt selected" data-val="3.1">3.1</button>
+          <button type="button" class="rubric-opt" data-val="4.0">4.0</button>
+          <button type="button" class="rubric-opt" data-val="5.0">5.0</button>
         </div>
       </div>
 
       <div class="rubric-group">
         <div class="rubric-group-title">Conoscenze (max 2.0)</div>
         <div class="rubric-options" data-group="conoscenze">
-          <button type="button" class="rubric-opt" data-val="0.3">0.3 - Inesistenti</button>
-          <button type="button" class="rubric-opt" data-val="0.6">0.6 - Limitate</button>
-          <button type="button" class="rubric-opt selected" data-val="1.2">1.2 - Adeguate</button>
-          <button type="button" class="rubric-opt" data-val="1.6">1.6 - Precise</button>
-          <button type="button" class="rubric-opt" data-val="2.0">2.0 - Complete</button>
+          <button type="button" class="rubric-opt" data-val="0.3">0.3</button>
+          <button type="button" class="rubric-opt" data-val="0.6">0.6</button>
+          <button type="button" class="rubric-opt selected" data-val="1.2">1.2</button>
+          <button type="button" class="rubric-opt" data-val="1.6">1.6</button>
+          <button type="button" class="rubric-opt" data-val="2.0">2.0</button>
         </div>
       </div>
 
@@ -615,12 +634,12 @@
 
       <div class="row" style="justify-content:space-between; margin-bottom:14px;">
         <div>
-          Totale griglia: <strong id="eval-sum-display">6.0</strong> / 10
-          &rarr; Voto registro: <strong id="eval-mastercom-display">6.00</strong>
+          Punteggio Griglia: <strong id="eval-sum-display">6.0</strong> / 10
+          &rarr; Voto calcolato da Griglia: <strong id="eval-mastercom-display">6.00</strong>
         </div>
         <label class="row student-meta">
           <input id="eval-synced-checkbox" type="checkbox" />
-          Segnato su registro elettronico
+          Segnato su registro
         </label>
       </div>
 
