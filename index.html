@@ -147,7 +147,7 @@
   <!-- SCHERMATA LOGIN PRIVATO -->
   <div id="login-screen">
     <div class="login-card">
-      <h2 style="margin-top:0; color:#1e3a8a;">SchoolManager</h2>
+      <h2 style="margin-top:0; color:#1e3a8a;">⚙️ SchoolManager</h2>
       <p style="color:#64748b; font-size:0.92rem;">Registro Privato Officina, Griglia Dipartimento &amp; CdC</p>
       <div style="display:flex; flex-direction:column; gap:10px; margin-top:20px;">
         <button id="btn-login-google" class="btn btn-primary" style="padding:12px;">Accedi con Google</button>
@@ -159,7 +159,7 @@
   <!-- APPLICAZIONE PRINCIPALE -->
   <div id="app-shell" class="hidden">
     <header>
-      <h1>SchoolManager</h1>
+      <h1>⚙️ SchoolManager</h1>
       <div class="header-controls">
         <select id="select-year" title="Anno Scolastico"></select>
         <select id="select-class" title="Classe"></select>
@@ -173,7 +173,8 @@
     </header>
 
     <nav class="tabs">
-      <button class="active" data-tab="tab-officina">⚡ Officina (1-Tap)</button>
+      <button class="active" data-tab="tab-dashboard">🏠 Dashboard</button>
+      <button data-tab="tab-officina">⚡ Officina (1-Tap)</button>
       <button data-tab="tab-valutazioni">📋 Griglia &amp; Voti</button>
       <button data-tab="tab-prove">🎯 Prove Minime</button>
       <button data-tab="tab-cdc">📊 CdC &amp; Assenze</button>
@@ -182,8 +183,18 @@
     </nav>
 
     <div class="container">
+      <!-- TAB 0: DASHBOARD -->
+      <section id="tab-dashboard" class="tab-panel">
+        <div class="card">
+          <h2>🏠 Dashboard — Necessità Immediate</h2>
+          <p style="color:var(--muted); margin:0;">
+            Qui inseriremo i riepiloghi rapidi che ti servono appena apri l'app (prossime prove, voti da caricare su Mastercom, studenti con più negativi, ecc.).
+          </p>
+        </div>
+      </section>
+
       <!-- TAB 1: OFFICINA RAPIDA (NEGATIVI / OSSERVAZIONI) -->
-      <section id="tab-officina" class="tab-panel">
+      <section id="tab-officina" class="tab-panel hidden">
         <div class="card">
           <div class="row" style="justify-content:space-between;">
             <div class="row">
@@ -444,11 +455,7 @@
   <div id="print-area"></div>
 
   <div id="toast"></div>
-<script>
-    window.addEventListener('error', e => {
-      document.getElementById('login-error').textContent = 'ERRORE: ' + e.message;
-    });
-  </script>
+
   <script type="module" src="./app.js"></script>
 </body>
 </html>
