@@ -26,7 +26,7 @@
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
-    .wrap { max-width: 1100px; margin: 0 auto; }
+    .wrap { max-width: 1140px; margin: 0 auto; }
 
     .nav {
       display: flex;
@@ -166,6 +166,16 @@
       background: rgba(10, 132, 255, 0.16);
       color: #70b5ff;
     }
+    .grid-open-btn {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--accent);
+      background: rgba(10, 132, 255, 0.16);
+      color: #70b5ff;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
 
     .col-del-btn {
       display: block;
@@ -268,7 +278,7 @@
       margin-top: 0 !important;
       padding: 8px !important;
       font-size: 13px !important;
-      min-width: 95px;
+      min-width: 90px;
     }
     .pill {
       display: inline-block;
@@ -289,9 +299,61 @@
       font-size: 13px;
       line-height: 1.45;
     }
+
+    /* Modale Griglia Dipartimento */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.72);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 15px;
+      z-index: 50;
+    }
+    .modal-card {
+      width: 100%;
+      max-width: 660px;
+      max-height: 90vh;
+      overflow-y: auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 15px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.65);
+    }
+    .ind-box {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 10px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+    }
+    .ind-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .ind-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .preview-box {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 10px;
+      background: #24211a;
+      border: 1px solid var(--warning);
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
     .hidden { display: none; }
 
-    /* Area dedicata per esportazione/stampa PDF multi-pagina */
     #print-area { display: none; }
 
     @media print {
@@ -306,7 +368,7 @@
         margin: 0 !important;
         font-size: 10px;
       }
-      .wrap { display: none !important; }
+      .wrap, .modal-backdrop { display: none !important; }
       #print-area {
         display: block !important;
         width: 100%;
@@ -426,12 +488,12 @@
 
         <div>
           <label>Data comune</label>
-          <input type="date" id="v-data">
+          <input type="date" id="v-data" onchange="recalcAllVerificaRows()">
         </div>
 
         <div>
           <label>Materia</label>
-          <select id="v-materia">
+          <select id="v-materia" onchange="recalcAllVerificaRows()">
             <option value="TECNOLOGIA">TECNOLOGIA</option>
             <option value="SISTEMI">SISTEMI</option>
             <option value="DISEGNO">DISEGNO</option>
@@ -449,7 +511,9 @@
           <thead>
             <tr>
               <th>Alunno</th>
-              <th>Voto (es. 7+)</th>
+              <th>Griglia Dip.</th>
+              <th>Annot. periodo</th>
+              <th>Voto finale</th>
               <th>Annotazione (±0.25)</th>
               <th>Desc. se -0.25</th>
             </tr>
@@ -462,7 +526,7 @@
       <div id="v-status" class="status"></div>
     </div>
 
-    <!-- 3. PROSPETTO IN SOLA LETTURA (CON MODALITÀ ELIMINA CONFERMATA + EXPORT PDF) -->
+    <!-- 3. PROSPETTO IN SOLA LETTURA -->
     <div id="view-prospetto" class="card hidden">
       <h2>Prospetto Classe</h2>
       <div style="text-align:center;"><span id="p-mode-pill" class="pill">SOLA LETTURA</span></div>
@@ -518,7 +582,57 @@
     </div>
   </div>
 
-  <!-- Contenitore dedicato alla stampa/PDF multi-pagina -->
+  <!-- MODALE GRIGLIA VALUTAZIONE ATTIVITÀ DI LABORATORIO (DIP. MECCANICA) -->
+  <div id="griglia-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <h2 id="gm-title">Griglia Laboratorio</h2>
+      <div id="gm-sub" class="ind-sub" style="text-align:center;"></div>
+
+      <div class="ind-box">
+        <div class="ind-title">1. Disegni, norme tecniche/sicurezza, termodinamica/elettrotecnica/idraulica, cicli e parametri (max 3.0)</div>
+        <select id="gm-ind1" onchange="updateModalPreview()">
+          <option value="">-- Seleziona livello --</option>
+          <option value="0.6">0.6 — Inesistenti / molto lacunose e frammentarie</option>
+          <option value="1.1">1.1 — Lacunose, superficiali</option>
+          <option value="1.7">1.7 — Semplici ma adeguate, non sempre precise</option>
+          <option value="2.4">2.4 — Precise ed esaurienti</option>
+          <option value="3.0">3.0 — Complete e approfondite</option>
+        </select>
+      </div>
+
+      <div class="ind-box">
+        <div class="ind-title">2. Strumentazione, macchine utensili tradizionali/CN, pannelli pneumatici/elettropneumatici, CAD/software, relazione (max 5.0)</div>
+        <select id="gm-ind2" onchange="updateModalPreview()">
+          <option value="">-- Seleziona livello --</option>
+          <option value="1.0">1.0 — Molto lacunose e frammentarie anche con assistenza</option>
+          <option value="1.4">1.4 — Superficiali e imprecise (continua assistenza)</option>
+          <option value="3.1">3.1 — Semplici ma adeguate (saltuari aiuti)</option>
+          <option value="4.0">4.0 — Precise ed esaurienti (notevole autonomia)</option>
+          <option value="5.0">5.0 — Complete e approfondite (del tutto autonomo)</option>
+        </select>
+      </div>
+
+      <div class="ind-box">
+        <div class="ind-title">3. Tecniche di misura, programmazione, controllo, parametri e teorie collegate (max 2.0)</div>
+        <select id="gm-ind3" onchange="updateModalPreview()">
+          <option value="">-- Seleziona livello --</option>
+          <option value="0.3">0.3 — Inesistenti / molto lacunose e frammentarie</option>
+          <option value="0.6">0.6 — Limitate, superficiali e mnemoniche</option>
+          <option value="1.2">1.2 — Estese, semplici, con qualche carenza ma adeguate</option>
+          <option value="1.6">1.6 — Precise ed esaurienti</option>
+          <option value="2.0">2.0 — Complete e approfondite</option>
+        </select>
+      </div>
+
+      <div id="gm-preview" class="preview-box"></div>
+
+      <div class="row" style="margin-top:16px;">
+        <button type="button" class="sec-btn" style="flex:1;padding:12px;" onclick="closeGrigliaModal()">Annulla</button>
+        <button type="button" class="primary-btn" style="flex:2;margin-top:0;" onclick="applyGrigliaModal()">APPLICA VOTO</button>
+      </div>
+    </div>
+  </div>
+
   <div id="print-area"></div>
 
   <script>
@@ -546,6 +660,13 @@
     let annoAttivoCache = null;
     let editModeProspetto = false;
     let ultimoProspettoData = null;
+
+    // Stato griglia verifica e calcolo annotazioni tra verifiche
+    let verificaColsCache = [];
+    let verificaRegsCache = [];
+    let grigliaPerAlunno = new Map(); // iscId -> { i1, i2, i3, base }
+    let activeModalIscId = null;
+    let activeModalNome = "";
 
     window.addEventListener("DOMContentLoaded", () => {
       renderQuickButtons();
@@ -813,6 +934,148 @@
       }
     }
 
+    // Calcola i punti annotazione maturati per iscId sulla materia selezionata,
+    // tra l'ultima verifica precedente della stessa materia e dataEvento (<= dataEvento).
+    function getAnnotazioniPeriodo(iscId, materia, dataEvento) {
+      if (!materia || !dataEvento) return 0;
+
+      // Trova l'ultima verifica precedente per materia e data <= dataEvento
+      const verPrecedenti = verificaColsCache
+        .filter(c => c.tipo === "verifica" && c.materia === materia && c.data_evento <= dataEvento)
+        .sort((a, b) => {
+          if (a.data_evento !== b.data_evento) return b.data_evento.localeCompare(a.data_evento);
+          return (b.creato_il || "").localeCompare(a.creato_il || "");
+        });
+
+      const ultimaVer = verPrecedenti[0] || null;
+      const sogliaData = ultimaVer ? ultimaVer.data_evento : null;
+      const sogliaCreato = ultimaVer ? (ultimaVer.creato_il || "") : "";
+
+      // Colonne annotazione della stessa materia fino a dataEvento, dopo ultimaVer
+      const colIdsValide = new Set(
+        verificaColsCache
+          .filter(c => {
+            if (c.tipo !== "annotazione" || c.materia !== materia) return false;
+            if (c.data_evento > dataEvento) return false;
+            if (!sogliaData) return true;
+            if (c.data_evento > sogliaData) return true;
+            if (c.data_evento === sogliaData) {
+              return (c.creato_il || "") > sogliaCreato;
+            }
+            return false;
+          })
+          .map(c => c.id)
+      );
+
+      if (colIdsValide.size === 0) return 0;
+
+      let somma = 0;
+      for (const r of verificaRegsCache) {
+        if (r.iscrizione_id === iscId && colIdsValide.has(r.colonna_id) && r.annotazione_punti !== null) {
+          somma += Number(r.annotazione_punti);
+        }
+      }
+      return Math.round(somma * 100) / 100;
+    }
+
+    function roundToQuarter(val) {
+      return Math.round(val * 4) / 4;
+    }
+
+    function formatScore(num) {
+      const rounded = Math.round(num * 100) / 100;
+      return String(rounded);
+    }
+
+    function recalcRowVoto(tr) {
+      const iscId = tr.getAttribute("data-isc-id");
+      const materia = document.getElementById("v-materia").value;
+      const dataEvento = document.getElementById("v-data").value;
+      const ptsAnn = getAnnotazioniPeriodo(iscId, materia, dataEvento);
+
+      const annBadge = tr.querySelector(".v-ann-pts");
+      if (annBadge) {
+        if (ptsAnn > 0) {
+          annBadge.innerHTML = `<span style="color:var(--pos);font-weight:700;">+${formatScore(ptsAnn)}</span>`;
+        } else if (ptsAnn < 0) {
+          annBadge.innerHTML = `<span style="color:var(--neg);font-weight:700;">${formatScore(ptsAnn)}</span>`;
+        } else {
+          annBadge.innerHTML = `<span style="color:var(--muted);">0</span>`;
+        }
+      }
+
+      const griglia = grigliaPerAlunno.get(iscId);
+      const votoInput = tr.querySelector(".v-voto");
+      if (griglia && typeof griglia.base === "number" && votoInput) {
+        const finale = roundToQuarter(griglia.base + ptsAnn);
+        votoInput.value = formatScore(finale);
+      }
+    }
+
+    function recalcAllVerificaRows() {
+      document.querySelectorAll("#v-tbody tr").forEach(tr => recalcRowVoto(tr));
+    }
+
+    function openGrigliaModal(iscId, nomeAlunno) {
+      activeModalIscId = iscId;
+      activeModalNome = nomeAlunno;
+      const current = grigliaPerAlunno.get(iscId) || { i1: "", i2: "", i3: "", base: null };
+
+      document.getElementById("gm-title").innerText = `Griglia Lab — ${nomeAlunno}`;
+      const mat = document.getElementById("v-materia").value;
+      const dt = document.getElementById("v-data").value;
+      document.getElementById("gm-sub").innerText = `Materia: ${mat} • Data verifica: ${dt || "-"}`;
+
+      document.getElementById("gm-ind1").value = current.i1 || "";
+      document.getElementById("gm-ind2").value = current.i2 || "";
+      document.getElementById("gm-ind3").value = current.i3 || "";
+
+      updateModalPreview();
+      document.getElementById("griglia-modal").classList.remove("hidden");
+    }
+
+    function closeGrigliaModal() {
+      document.getElementById("griglia-modal").classList.add("hidden");
+      activeModalIscId = null;
+    }
+
+    function updateModalPreview() {
+      const v1 = parseFloat(document.getElementById("gm-ind1").value) || 0;
+      const v2 = parseFloat(document.getElementById("gm-ind2").value) || 0;
+      const v3 = parseFloat(document.getElementById("gm-ind3").value) || 0;
+      const base = Math.round((v1 + v2 + v3) * 100) / 100;
+
+      const materia = document.getElementById("v-materia").value;
+      const dataEvento = document.getElementById("v-data").value;
+      const ptsAnn = activeModalIscId ? getAnnotazioniPeriodo(activeModalIscId, materia, dataEvento) : 0;
+      const finale = roundToQuarter(base + ptsAnn);
+
+      const annStr = ptsAnn > 0 ? `+${formatScore(ptsAnn)}` : formatScore(ptsAnn);
+      document.getElementById("gm-preview").innerHTML = `
+        <div>Base griglia: <strong>${formatScore(base)}/10</strong></div>
+        <div>Annotazioni periodo: <strong>${annStr}</strong></div>
+        <div>Voto calcolato: <strong style="color:var(--pos);font-size:15px;">${formatScore(finale)}</strong></div>
+      `;
+    }
+
+    function applyGrigliaModal() {
+      if (!activeModalIscId) return;
+      const s1 = document.getElementById("gm-ind1").value;
+      const s2 = document.getElementById("gm-ind2").value;
+      const s3 = document.getElementById("gm-ind3").value;
+      const base = Math.round(((parseFloat(s1) || 0) + (parseFloat(s2) || 0) + (parseFloat(s3) || 0)) * 100) / 100;
+
+      grigliaPerAlunno.set(activeModalIscId, { i1: s1, i2: s2, i3: s3, base });
+
+      const tr = document.querySelector(`#v-tbody tr[data-isc-id="${activeModalIscId}"]`);
+      if (tr) {
+        const btn = tr.querySelector(".grid-open-btn");
+        if (btn) btn.innerText = `📋 ${formatScore(base)}`;
+        recalcRowVoto(tr);
+      }
+      closeGrigliaModal();
+    }
+
     async function loadVerificaGrid() {
       const cl = document.getElementById("v-classe").value;
       const wrap = document.getElementById("v-grid-wrap");
@@ -825,24 +1088,55 @@
         return;
       }
 
-      st.innerText = "⏳ Caricamento griglia...";
+      st.innerText = "⏳ Caricamento griglia e storico annotazioni...";
       try {
         const classeAnnoId = await getClasseAnnoId(cl);
         const iscr = await getIscrizioniClasse(classeAnnoId);
-        document.getElementById("v-tbody").innerHTML = iscr.map(i => `
-          <tr data-isc-id="${i.id}">
-            <td><strong>${i.alunni.nome_cognome}</strong></td>
-            <td><input type="text" class="cell-inp v-voto" placeholder="Es: 7+"></td>
-            <td>
-              <select class="cell-inp v-ann">
-                <option value="">--</option>
-                <option value="0.25">+0.25</option>
-                <option value="-0.25">-0.25</option>
-              </select>
-            </td>
-            <td><input type="text" class="cell-inp v-desc" placeholder="Solo se -0.25"></td>
-          </tr>
-        `).join("");
+
+        const { data: cols, error: colErr } = await sb
+          .from("colonne_evento")
+          .select("id, data_evento, tipo, materia, creato_il")
+          .eq("classe_anno_id", classeAnnoId)
+          .order("data_evento", { ascending: true })
+          .order("creato_il", { ascending: true });
+        if (colErr) throw new Error(colErr.message);
+
+        verificaColsCache = cols || [];
+        const colIds = verificaColsCache.map(c => c.id);
+        if (colIds.length > 0) {
+          const { data: regs, error: regErr } = await sb
+            .from("registrazioni")
+            .select("iscrizione_id, colonna_id, voto, annotazione_punti")
+            .in("colonna_id", colIds);
+          if (regErr) throw new Error(regErr.message);
+          verificaRegsCache = regs || [];
+        } else {
+          verificaRegsCache = [];
+        }
+
+        grigliaPerAlunno.clear();
+
+        document.getElementById("v-tbody").innerHTML = iscr.map(i => {
+          const safeNome = i.alunni.nome_cognome.replace(/'/g, "\\'");
+          return `
+            <tr data-isc-id="${i.id}">
+              <td><strong>${i.alunni.nome_cognome}</strong></td>
+              <td><button type="button" class="grid-open-btn" onclick="openGrigliaModal('${i.id}', '${safeNome}')">📋 Griglia</button></td>
+              <td class="v-ann-pts">0</td>
+              <td><input type="text" class="cell-inp v-voto" placeholder="Es: 7"></td>
+              <td>
+                <select class="cell-inp v-ann">
+                  <option value="">--</option>
+                  <option value="0.25">+0.25</option>
+                  <option value="-0.25">-0.25</option>
+                </select>
+              </td>
+              <td><input type="text" class="cell-inp v-desc" placeholder="Solo se -0.25"></td>
+            </tr>
+          `;
+        }).join("");
+
+        recalcAllVerificaRows();
         wrap.classList.remove("hidden");
         btn.classList.remove("hidden");
         st.innerText = "";
@@ -958,6 +1252,9 @@
         st.innerText = `✅ Salvati ${regs.length} inserimenti per ${cl}.`;
         document.querySelectorAll(".v-voto, .v-desc").forEach(i => i.value = "");
         document.querySelectorAll(".v-ann").forEach(s => s.value = "");
+        grigliaPerAlunno.clear();
+        document.querySelectorAll(".grid-open-btn").forEach(b => b.innerText = "📋 Griglia");
+        await loadVerificaGrid();
       } catch (e) {
         st.innerText = "❌ Errore: " + e.message;
       } finally {
@@ -1081,7 +1378,6 @@
       const { cl, annoLabel, iscr, colList, mapReg } = ultimoProspettoData;
       const printArea = document.getElementById("print-area");
 
-      // Suddivide le colonne in blocchi per non schiacciare le tabelle su foglio A4 orizzontale
       const colsPerPage = 10;
       const colChunks = [];
       if (colList.length === 0) {
@@ -1092,7 +1388,6 @@
         }
       }
 
-      // Suddivide anche gli alunni se superano 24 righe per pagina
       const rowsPerPage = 24;
       const rowChunks = [];
       for (let idx = 0; idx < iscr.length; idx += rowsPerPage) {
