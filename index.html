@@ -138,6 +138,60 @@
     .primary-btn.warn { background: var(--warning); color: #121212; }
     .primary-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 12px;
+    }
+    .sec-btn {
+      padding: 9px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--input-bg);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .sec-btn.danger-active {
+      border-color: var(--neg);
+      background: rgba(255, 69, 58, 0.18);
+      color: #ff8a84;
+    }
+    .sec-btn.pdf {
+      border-color: var(--accent);
+      background: rgba(10, 132, 255, 0.16);
+      color: #70b5ff;
+    }
+
+    .col-del-btn {
+      display: block;
+      margin: 5px auto 0;
+      padding: 2px 6px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 69, 58, 0.6);
+      background: rgba(255, 69, 58, 0.15);
+      color: #ff8a84;
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .cell-del-btn {
+      margin-left: 6px;
+      padding: 1px 5px;
+      border-radius: 5px;
+      border: 1px solid rgba(255, 69, 58, 0.55);
+      background: rgba(255, 69, 58, 0.18);
+      color: #ff9e99;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+      vertical-align: middle;
+    }
+
     .status {
       margin-top: 14px;
       min-height: 20px;
@@ -236,6 +290,77 @@
       line-height: 1.45;
     }
     .hidden { display: none; }
+
+    /* Area dedicata per esportazione/stampa PDF multi-pagina */
+    #print-area { display: none; }
+
+    @media print {
+      @page {
+        size: A4 landscape;
+        margin: 10mm;
+      }
+      body {
+        background: #ffffff !important;
+        color: #000000 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        font-size: 10px;
+      }
+      .wrap { display: none !important; }
+      #print-area {
+        display: block !important;
+        width: 100%;
+      }
+      .print-page {
+        page-break-after: always;
+        break-after: page;
+      }
+      .print-page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+      .print-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 6px;
+        border-bottom: 1.5px solid #222;
+        padding-bottom: 4px;
+      }
+      .print-title { font-size: 14px; font-weight: 700; }
+      .print-meta { font-size: 10px; color: #444; }
+      table.print-tbl {
+        width: 100% !important;
+        min-width: 0 !important;
+        border-collapse: collapse !important;
+        table-layout: fixed;
+        font-size: 9.5px;
+      }
+      table.print-tbl thead { display: table-header-group; }
+      table.print-tbl tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      table.print-tbl th, table.print-tbl td {
+        position: static !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #666 !important;
+        padding: 4px 5px !important;
+        white-space: normal !important;
+        word-break: break-word;
+        min-width: 0 !important;
+      }
+      table.print-tbl th {
+        background: #ececec !important;
+        font-weight: 700;
+      }
+      table.print-tbl tr.print-footer td {
+        background: #fff8e6 !important;
+        font-weight: 700;
+        font-style: italic;
+      }
+    }
   </style>
 </head>
 <body>
@@ -337,10 +462,10 @@
       <div id="v-status" class="status"></div>
     </div>
 
-    <!-- 3. PROSPETTO IN SOLA LETTURA -->
+    <!-- 3. PROSPETTO IN SOLA LETTURA (CON MODALITÀ ELIMINA CONFERMATA + EXPORT PDF) -->
     <div id="view-prospetto" class="card hidden">
       <h2>Prospetto Classe</h2>
-      <div style="text-align:center;"><span class="pill">SOLA LETTURA</span></div>
+      <div style="text-align:center;"><span id="p-mode-pill" class="pill">SOLA LETTURA</span></div>
 
       <label>Seleziona classe (una alla volta)</label>
       <select id="p-classe" onchange="loadProspetto()">
@@ -349,6 +474,11 @@
         <option value="4AM">4AM</option>
         <option value="5AM">5AM</option>
       </select>
+
+      <div id="p-toolbar" class="toolbar hidden">
+        <button id="p-toggle-edit" type="button" class="sec-btn" onclick="toggleEditMode()">🔓 Attiva Elimina</button>
+        <button type="button" class="sec-btn pdf" onclick="exportProspettoPdf()">📄 Esporta / Stampa PDF</button>
+      </div>
 
       <div id="p-status" class="status"></div>
       <div id="p-wrap" class="table-wrap hidden">
@@ -388,6 +518,9 @@
     </div>
   </div>
 
+  <!-- Contenitore dedicato alla stampa/PDF multi-pagina -->
+  <div id="print-area"></div>
+
   <script>
     const SUPABASE_URL = "https://dgdlldmskwkgummpdgnx.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_Yv8ob9MdEaYb9fcsavar8Q_nCLc0HX0";
@@ -411,6 +544,8 @@
 
     let selezioneAnnotazione = { verso: "neg", desc: null, quickIndex: null };
     let annoAttivoCache = null;
+    let editModeProspetto = false;
+    let ultimoProspettoData = null;
 
     window.addEventListener("DOMContentLoaded", () => {
       renderQuickButtons();
@@ -836,20 +971,204 @@
       return `${d}/${m}`;
     }
 
+    function toggleEditMode() {
+      editModeProspetto = !editModeProspetto;
+      const btn = document.getElementById("p-toggle-edit");
+      const pill = document.getElementById("p-mode-pill");
+      if (editModeProspetto) {
+        btn.classList.add("danger-active");
+        btn.innerText = "🔒 Blocca (Sola Lettura)";
+        pill.innerText = "MODIFICA / ELIMINA ATTIVA";
+        pill.style.color = "#ff8a84";
+        pill.style.borderColor = "var(--neg)";
+      } else {
+        btn.classList.remove("danger-active");
+        btn.innerText = "🔓 Attiva Elimina";
+        pill.innerText = "SOLA LETTURA";
+        pill.style.color = "";
+        pill.style.borderColor = "";
+      }
+      renderProspettoTable();
+    }
+
+    async function deleteRegistrazione(regId, nomeAlunno, dataStr) {
+      const ok = confirm(`Confermi l'eliminazione della registrazione di ${nomeAlunno} in data ${dataStr}?`);
+      if (!ok) return;
+      const st = document.getElementById("p-status");
+      st.innerText = "⏳ Eliminazione registrazione...";
+      try {
+        const { error } = await sb.from("registrazioni").delete().eq("id", regId);
+        if (error) throw new Error(error.message);
+        st.innerText = `✅ Registrazione di ${nomeAlunno} (${dataStr}) eliminata.`;
+        await loadProspetto();
+      } catch (e) {
+        st.innerText = "❌ Errore: " + e.message;
+      }
+    }
+
+    async function deleteColonna(colId, dataStr, dettaglioStr) {
+      const label = dettaglioStr ? `${dataStr} (${dettaglioStr})` : dataStr;
+      const ok = confirm(`Confermi l'eliminazione dell'intera colonna ${label} e di tutte le registrazioni collegate?`);
+      if (!ok) return;
+      const st = document.getElementById("p-status");
+      st.innerText = "⏳ Eliminazione colonna...";
+      try {
+        const { error: regErr } = await sb.from("registrazioni").delete().eq("colonna_id", colId);
+        if (regErr) throw new Error(regErr.message);
+
+        const { error: colErr } = await sb.from("colonne_evento").delete().eq("id", colId);
+        if (colErr) throw new Error(colErr.message);
+
+        st.innerText = `✅ Colonna ${label} eliminata.`;
+        await loadProspetto();
+      } catch (e) {
+        st.innerText = "❌ Errore: " + e.message;
+      }
+    }
+
+    function renderProspettoTable() {
+      const table = document.getElementById("p-table");
+      if (!ultimoProspettoData) return;
+      const { iscr, colList, mapReg } = ultimoProspettoData;
+
+      const thead = "<thead><tr><th>Alunno</th>" +
+        colList.map(c => {
+          const dShort = formatDataShort(c.data_evento);
+          const det = c.tipo === "verifica" ? (c.materia || "") : (c.descrizione_negativa || "");
+          const delBtn = editModeProspetto
+            ? `<button type="button" class="col-del-btn" onclick="deleteColonna('${c.id}', '${dShort}', '${(det || "").replace(/'/g, "\\'")}')">🗑 Colonna</button>`
+            : "";
+          return `<th>${dShort}${delBtn}</th>`;
+        }).join("") +
+        "</tr></thead>";
+
+      const bodyRows = iscr.map(i => {
+        const cells = colList.map(c => {
+          const r = mapReg.get(`${i.id}__${c.id}`);
+          if (!r) return "<td></td>";
+
+          const dShort = formatDataShort(c.data_evento);
+          const safeNome = i.alunni.nome_cognome.replace(/'/g, "\\'");
+          const delCellBtn = editModeProspetto && r.id
+            ? `<button type="button" class="cell-del-btn" title="Elimina voce" onclick="deleteRegistrazione('${r.id}', '${safeNome}', '${dShort}')">×</button>`
+            : "";
+
+          if (r.voto) {
+            return `<td><strong>${r.voto}</strong>${delCellBtn}</td>`;
+          }
+          if (r.annotazione_punti !== null) {
+            const isPos = r.annotazione_punti > 0;
+            const cls = isPos ? "color:var(--pos);" : "color:var(--neg);";
+            const testo = c.descrizione_negativa ? c.descrizione_negativa : (isPos ? "+" : "-");
+            return `<td><span style="${cls}font-weight:700;">${testo}</span>${delCellBtn}</td>`;
+          }
+          return "<td></td>";
+        }).join("");
+        return `<tr><td><strong>${i.alunni.nome_cognome}</strong></td>${cells}</tr>`;
+      }).join("");
+
+      const footerCells = colList.map(c => `<td>${c.materia || ""}</td>`).join("");
+      const footerRow = `<tr class="footer-row"><td>Dettaglio</td>${footerCells}</tr>`;
+
+      table.innerHTML = thead + "<tbody>" + bodyRows + footerRow + "</tbody>";
+    }
+
+    function exportProspettoPdf() {
+      if (!ultimoProspettoData) {
+        alert("Seleziona prima una classe nel Prospetto.");
+        return;
+      }
+      const { cl, annoLabel, iscr, colList, mapReg } = ultimoProspettoData;
+      const printArea = document.getElementById("print-area");
+
+      // Suddivide le colonne in blocchi per non schiacciare le tabelle su foglio A4 orizzontale
+      const colsPerPage = 10;
+      const colChunks = [];
+      if (colList.length === 0) {
+        colChunks.push([]);
+      } else {
+        for (let idx = 0; idx < colList.length; idx += colsPerPage) {
+          colChunks.push(colList.slice(idx, idx + colsPerPage));
+        }
+      }
+
+      // Suddivide anche gli alunni se superano 24 righe per pagina
+      const rowsPerPage = 24;
+      const rowChunks = [];
+      for (let idx = 0; idx < iscr.length; idx += rowsPerPage) {
+        rowChunks.push(iscr.slice(idx, idx + rowsPerPage));
+      }
+      if (rowChunks.length === 0) rowChunks.push([]);
+
+      const pagesHtml = [];
+      let pageNum = 0;
+      const totalPages = colChunks.length * rowChunks.length;
+
+      for (let cIdx = 0; cIdx < colChunks.length; cIdx++) {
+        const colsSlice = colChunks[cIdx];
+        for (let rIdx = 0; rIdx < rowChunks.length; rIdx++) {
+          pageNum++;
+          const rowsSlice = rowChunks[rIdx];
+
+          const thHtml = "<tr><th style='width:22%;'>Alunno</th>" +
+            colsSlice.map(c => `<th>${formatDataShort(c.data_evento)}</th>`).join("") +
+            "</tr>";
+
+          const trHtml = rowsSlice.map(i => {
+            const tds = colsSlice.map(c => {
+              const r = mapReg.get(`${i.id}__${c.id}`);
+              if (!r) return "<td></td>";
+              if (r.voto) return `<td><strong>${r.voto}</strong></td>`;
+              if (r.annotazione_punti !== null) {
+                const isPos = r.annotazione_punti > 0;
+                const testo = c.descrizione_negativa ? c.descrizione_negativa : (isPos ? "+" : "-");
+                return `<td>${testo}</td>`;
+              }
+              return "<td></td>";
+            }).join("");
+            return `<tr><td><strong>${i.alunni.nome_cognome}</strong></td>${tds}</tr>`;
+          }).join("");
+
+          const footerHtml = "<tr class='print-footer'><td>Dettaglio</td>" +
+            colsSlice.map(c => `<td>${c.materia || ""}</td>`).join("") +
+            "</tr>";
+
+          pagesHtml.push(`
+            <div class="print-page">
+              <div class="print-header">
+                <div class="print-title">SchoolManager — Prospetto Classe ${cl} (${annoLabel})</div>
+                <div class="print-meta">Pagina ${pageNum} di ${totalPages}</div>
+              </div>
+              <table class="print-tbl">
+                <thead>${thHtml}</thead>
+                <tbody>${trHtml}${footerHtml}</tbody>
+              </table>
+            </div>
+          `);
+        }
+      }
+
+      printArea.innerHTML = pagesHtml.join("");
+      window.print();
+    }
+
     async function loadProspetto() {
       const cl = document.getElementById("p-classe").value;
       const wrap = document.getElementById("p-wrap");
-      const table = document.getElementById("p-table");
+      const toolbar = document.getElementById("p-toolbar");
       const st = document.getElementById("p-status");
 
       if (!cl) {
         wrap.classList.add("hidden");
+        toolbar.classList.add("hidden");
+        ultimoProspettoData = null;
         st.innerText = "";
         return;
       }
 
       st.innerText = "⏳ Caricamento prospetto " + cl + "...";
       try {
+        const anno = await getAnnoAttivo();
         const classeAnnoId = await getClasseAnnoId(cl);
         const iscr = await getIscrizioniClasse(classeAnnoId);
 
@@ -867,7 +1186,7 @@
         if (colIds.length > 0) {
           const { data: regData, error: regErr } = await sb
             .from("registrazioni")
-            .select("iscrizione_id, colonna_id, voto, annotazione_punti")
+            .select("id, iscrizione_id, colonna_id, voto, annotazione_punti")
             .in("colonna_id", colIds);
           if (regErr) throw new Error(regErr.message);
           regs = regData || [];
@@ -878,40 +1197,16 @@
           mapReg.set(`${r.iscrizione_id}__${r.colonna_id}`, r);
         }
 
-        const thead = "<thead><tr><th>Alunno</th>" +
-          colList.map(c => `<th>${formatDataShort(c.data_evento)}</th>`).join("") +
-          "</tr></thead>";
-
-        const bodyRows = iscr.map(i => {
-          const cells = colList.map(c => {
-            const r = mapReg.get(`${i.id}__${c.id}`);
-            if (!r) return "<td></td>";
-            if (r.voto) return `<td><strong>${r.voto}</strong></td>`;
-            if (r.annotazione_punti !== null) {
-              const isPos = r.annotazione_punti > 0;
-              const cls = isPos ? "color:var(--pos);" : "color:var(--neg);";
-              let testo = "";
-              if (isPos) {
-                testo = c.descrizione_negativa ? c.descrizione_negativa : "+";
-              } else {
-                testo = c.descrizione_negativa ? c.descrizione_negativa : "-";
-              }
-              return `<td><span style="${cls}font-weight:700;">${testo}</span></td>`;
-            }
-            return "<td></td>";
-          }).join("");
-          return `<tr><td><strong>${i.alunni.nome_cognome}</strong></td>${cells}</tr>`;
-        }).join("");
-
-        const footerCells = colList.map(c => `<td>${c.materia || ""}</td>`).join("");
-        const footerRow = `<tr class="footer-row"><td>Dettaglio</td>${footerCells}</tr>`;
-
-        table.innerHTML = thead + "<tbody>" + bodyRows + footerRow + "</tbody>";
+        ultimoProspettoData = { cl, annoLabel: anno.etichetta, iscr, colList, mapReg };
+        renderProspettoTable();
         wrap.classList.remove("hidden");
+        toolbar.classList.remove("hidden");
         st.innerText = "";
       } catch (e) {
         st.innerText = "❌ " + e.message;
         wrap.classList.add("hidden");
+        toolbar.classList.add("hidden");
+        ultimoProspettoData = null;
       }
     }
   </script>
