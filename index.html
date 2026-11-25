@@ -445,7 +445,11 @@
   <div id="print-area"></div>
 
   <div id="toast"></div>
-
+<script>
+    window.addEventListener('error', e => {
+      document.getElementById('login-error').textContent = 'ERRORE: ' + e.message;
+    });
+  </script>
   <script type="module" src="./app.js"></script>
 </body>
 </html>
