@@ -26,7 +26,7 @@
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
-    .wrap { max-width: 980px; margin: 0 auto; }
+    .wrap { max-width: 1100px; margin: 0 auto; }
 
     .nav {
       display: flex;
@@ -159,30 +159,56 @@
       overflow-x: auto;
       border-radius: 10px;
       border: 1px solid var(--border);
+      background: var(--card);
     }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 13px;
+    }
     th, td {
-      padding: 9px 10px;
+      padding: 10px 14px;
       border-bottom: 1px solid var(--border);
+      border-right: 1px solid #2b2b2e;
       text-align: center;
       white-space: nowrap;
+      min-width: 78px;
     }
+    th:last-child, td:last-child { border-right: none; }
+    tbody tr:last-child th, tbody tr:last-child td { border-bottom: none; }
+
     th:first-child, td:first-child {
       text-align: left;
       position: sticky;
       left: 0;
       background: var(--card);
-      z-index: 1;
+      z-index: 2;
+      min-width: 170px;
+      border-right: 2px solid var(--border);
     }
-    th { background: #262629; color: #d1d1d6; font-size: 12px; }
-    th:first-child { background: #262629; z-index: 2; }
+    th {
+      background: #262629;
+      color: #e5e5ea;
+      font-size: 12px;
+      font-weight: 700;
+      position: sticky;
+      top: 0;
+      z-index: 3;
+    }
+    th:first-child { background: #262629; z-index: 4; }
+
     tr.footer-row td {
       background: #24211a;
       color: var(--warning);
       font-style: italic;
       font-weight: 700;
     }
-    tr.footer-row td:first-child { background: #24211a; }
+    tr.footer-row td:first-child {
+      background: #24211a;
+      font-style: normal;
+    }
 
     .cell-inp {
       margin-top: 0 !important;
@@ -834,7 +860,8 @@
           .order("creato_il", { ascending: true });
         if (colErr) throw new Error(colErr.message);
 
-        const colIds = (cols || []).map(c => c.id);
+        const colList = cols || [];
+        const colIds = colList.map(c => c.id);
         let regs = [];
         if (colIds.length > 0) {
           const { data: regData, error: regErr } = await sb
@@ -851,31 +878,33 @@
         }
 
         const thead = "<thead><tr><th>Alunno</th>" +
-          (cols || []).map(c => `<th>${formatDataShort(c.data_evento)}</th>`).join("") +
+          colList.map(c => `<th>${formatDataShort(c.data_evento)}</th>`).join("") +
           "</tr></thead>";
 
         const bodyRows = iscr.map(i => {
-          const cells = (cols || []).map(c => {
+          const cells = colList.map(c => {
             const r = mapReg.get(`${i.id}__${c.id}`);
-            if (!r) return "·";
-            if (r.voto) return `<strong>${r.voto}</strong>`;
+            if (!r) return "<td>·</td>";
+            if (r.voto) return `<td><strong>${r.voto}</strong></td>`;
             if (r.annotazione_punti !== null) {
               const isPos = r.annotazione_punti > 0;
               const cls = isPos ? "color:var(--pos);" : "color:var(--neg);";
               const segno = isPos ? "+" : "-";
-              return `<span style="${cls}font-weight:800;font-size:15px;">${segno}</span>`;
+              return `<td><span style="${cls}font-weight:800;font-size:15px;">${segno}</span></td>`;
             }
-            return "·";
+            return "<td>·</td>";
           }).join("");
           return `<tr><td><strong>${i.alunni.nome_cognome}</strong></td>${cells}</tr>`;
         }).join("");
 
-        const footerCells = (cols || []).map(c => {
-          if (c.tipo === "verifica") return c.materia || "";
-          if (c.tipo === "annotazione" && c.verso_annotazione === "neg") {
-            return c.descrizione_negativa || "";
+        const footerCells = colList.map(c => {
+          let label = "";
+          if (c.tipo === "verifica") {
+            label = c.materia || "";
+          } else if (c.tipo === "annotazione" && c.verso_annotazione === "neg") {
+            label = c.descrizione_negativa || "";
           }
-          return "";
+          return `<td>${label}</td>`;
         }).join("");
 
         const footerRow = `<tr class="footer-row"><td>Dettaglio</td>${footerCells}</tr>`;
