@@ -4,6 +4,31 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY, ALLOWED_EMAIL } from "./config.js";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const DEFAULT_RUBRIC = { competenze: 1.7, abilita: 3.1, conoscenze: 1.2 };
+const SHIFT_OVERRIDES_STORAGE_KEY = "schoolmanager_shift_overrides_v1";
+const SKIPPED_DAYS_STORAGE_KEY = "schoolmanager_skipped_days_v1";
+
+const WEEKLY_SLOTS = [
+  { day: 2, dayName: "Martedi", time: "07:55 - 09:55", className: "3AM", detail: "Tecnologia" },
+  { day: 2, dayName: "Martedi", time: "11:55 - 13:55", className: "4AM", detail: "Gruppo 2" },
+  { day: 4, dayName: "Giovedi", time: "09:55 - 11:55", className: "3AM", detail: "Gruppo 2" },
+  { day: 6, dayName: "Sabato",  time: "08:55 - 10:45", className: "4AM", detail: "Gruppo 1" }
+];
+
+function loadJSON(key, fallback) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
+  } catch {
+    return fallback;
+  }
+}
+
+function saveJSON(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignora errori di storage in modalita privata
+  }
+}
 
 // Stato globale dell'app
 const state = {
@@ -12,14 +37,16 @@ const state = {
   currentYearId: null,
   classes: [],
   currentClassId: null,
-  enrollments: [], // include student
+  enrollments: [],
   observations: [],
   evaluations: [],
   plannedAssessments: [],
   absences: [],
   lessonPlans: [],
   selectedRubric: { ...DEFAULT_RUBRIC },
-  evalViewMode: "calendar" // "calendar" oppure "grid"
+  evalViewMode: "calendar", // "calendar" oppure "grid"
+  shiftOverrides: loadJSON(SHIFT_OVERRIDES_STORAGE_KEY, {}), // { [classId]: { [enrollmentId]: newIndex } }
+  skippedDays: loadJSON(SKIPPED_DAYS_STORAGE_KEY, {}) // { [classId]: number }
 };
 
 const QUICK_NEGATIVE_TAGS = [
@@ -36,6 +63,7 @@ const QUICK_NEGATIVE_TAGS = [
 // ============================================================================
 function showToast(msg) {
   const el = document.getElementById("toast");
+  if (!el) return;
   el.textContent = msg;
   el.style.display = "block";
   clearTimeout(window._toastTimer);
@@ -43,7 +71,6 @@ function showToast(msg) {
 }
 
 function roundMastercom(val) {
-  // Arrotonda al mezzo voto più vicino (es. 5.7 -> 5.5, 5.8 -> 6.0)
   return (Math.round(val * 2) / 2).toFixed(2);
 }
 
@@ -81,8 +108,93 @@ function getStudentObservationsText(enrollmentId) {
   if (list.length === 0) return "";
   return list
     .map(o => `${o.tag} (${new Date(o.observed_at).toLocaleDateString("it-IT")})`)
-    .join(" • ");
+    .join(" / ");
 }
+
+function getSkippedDaysForClass(classId) {
+  if (!classId) return 0;
+  return Number(state.skippedDays[classId] || 0);
+}
+
+function setSkippedDaysForClass(classId, value) {
+  if (!classId) return;
+  state.skippedDays[classId] = Math.max(0, Number(value) || 0);
+  saveJSON(SKIPPED_DAYS_STORAGE_KEY, state.skippedDays);
+}
+
+function getOrderedShiftEnrollments(groupFilter = "ALL") {
+  const baseList = state.enrollments
+    .filter(e => {
+      if (groupFilter === "ALL") return true;
+      const g = (e.lab_group || "").toLowerCase().trim();
+      const f = groupFilter.toLowerCase().trim();
+      if (g === f) return true;
+      if (f === "gruppo 1" && (g === "gruppo a" || g === "1")) return true;
+      if (f === "gruppo 2" && (g === "gruppo b" || g === "2")) return true;
+      return false;
+    })
+    .slice()
+    .sort((a, b) =>
+      `${a.students.last_name} ${a.students.first_name}`.localeCompare(
+        `${b.students.last_name} ${b.students.first_name}`,
+        "it"
+      )
+    );
+
+  const classOverrides = state.shiftOverrides[state.currentClassId] || {};
+  const hasAnyOverride = baseList.some(e => typeof classOverrides[e.id] === "number");
+  let arranged = baseList.slice();
+
+  if (hasAnyOverride) {
+    Object.entries(classOverrides).forEach(([enrId, targetPos]) => {
+      const currentIdx = arranged.findIndex(item => item.id === enrId);
+      if (currentIdx !== -1 && typeof targetPos === "number") {
+        const [moved] = arranged.splice(currentIdx, 1);
+        const safePos = Math.max(0, Math.min(arranged.length, targetPos));
+        arranged.splice(safePos, 0, moved);
+      }
+    });
+  }
+
+  // Applica lo slittamento automatico in base ai giorni saltati per la classe
+  const skipped = getSkippedDaysForClass(state.currentClassId);
+  if (arranged.length > 0 && skipped > 0) {
+    const offset = skipped % arranged.length;
+    if (offset > 0) {
+      arranged = arranged.slice(offset).concat(arranged.slice(0, offset));
+    }
+  }
+
+  return arranged;
+}
+
+window.moveStudentInShift = (enrollmentId, direction) => {
+  const groupFilter = document.getElementById("dash-shift-group")?.value || "ALL";
+  const ordered = getOrderedShiftEnrollments(groupFilter);
+  const idx = ordered.findIndex(e => e.id === enrollmentId);
+  if (idx === -1) return;
+
+  const newIdx = direction === "up" ? idx - 1 : idx + 1;
+  if (newIdx < 0 || newIdx >= ordered.length) return;
+
+  if (!state.shiftOverrides[state.currentClassId]) {
+    state.shiftOverrides[state.currentClassId] = {};
+  }
+
+  const copy = ordered.slice();
+  const [moved] = copy.splice(idx, 1);
+  copy.splice(newIdx, 0, moved);
+
+  const nextMap = {};
+  copy.forEach((item, pos) => {
+    nextMap[item.id] = pos;
+  });
+
+  state.shiftOverrides[state.currentClassId] = nextMap;
+  saveJSON(SHIFT_OVERRIDES_STORAGE_KEY, state.shiftOverrides);
+  renderDashboard();
+  showToast(`Spostato ${moved.students.last_name} in posizione ${newIdx + 1}`);
+};
 
 // ============================================================================
 // AUTENTICAZIONE PRIVATA
@@ -235,7 +347,7 @@ async function loadClassDetails() {
   }
 
   state.enrollments = (enrollments || []).sort((a, b) =>
-    a.students.last_name.localeCompare(b.students.last_name)
+    a.students.last_name.localeCompare(b.students.last_name, "it")
   );
 
   const enrIds = state.enrollments.map(e => e.id);
@@ -279,6 +391,7 @@ function getFilteredEnrollments() {
 }
 
 function renderAllViews() {
+  renderDashboard();
   renderOfficinaList();
   renderEvaluationsList();
   renderPlannedList();
@@ -286,7 +399,146 @@ function renderAllViews() {
 }
 
 // ============================================================================
-// TAB 1: OFFICINA 1-TAP
+// DASHBOARD OPERATIVA
+// ============================================================================
+function renderDashboard() {
+  const subtitleEl = document.getElementById("dash-class-subtitle");
+  const kpisEl = document.getElementById("dash-kpis");
+  const shiftsEl = document.getElementById("dash-shifts-list");
+  const alertsEl = document.getElementById("dash-alerts-list");
+  const skippedCountEl = document.getElementById("dash-skipped-count");
+  const scheduleTodayEl = document.getElementById("dash-schedule-today");
+  if (!kpisEl || !shiftsEl || !alertsEl) return;
+
+  const currentClass = state.classes.find(c => c.id === state.currentClassId);
+  const currentYear = state.years.find(y => y.id === state.currentYearId);
+  const skipped = getSkippedDaysForClass(state.currentClassId);
+
+  if (skippedCountEl) {
+    skippedCountEl.textContent = String(skipped);
+  }
+
+  if (scheduleTodayEl) {
+    const todayDay = new Date().getDay();
+    const todaySlots = WEEKLY_SLOTS.filter(s => s.day === todayDay);
+    const classSlots = currentClass
+      ? WEEKLY_SLOTS.filter(s => s.className === currentClass.name)
+      : [];
+
+    const todayText = todaySlots.length > 0
+      ? `Oggi (${todaySlots[0].dayName}): ${todaySlots.map(s => `${s.time} ${s.className} (${s.detail})`).join(" / ")}`
+      : "Oggi non ci sono ore programmate nell'orario settimanale.";
+
+    const classText = classSlots.length > 0
+      ? `Ore settimanali ${currentClass.name}: ${classSlots.map(s => `${s.dayName} ${s.time} [${s.detail}]`).join(" - ")}`
+      : "";
+
+    scheduleTodayEl.textContent = [todayText, classText].filter(Boolean).join(" | ");
+  }
+
+  if (!currentClass) {
+    if (subtitleEl) subtitleEl.textContent = "Nessuna classe selezionata.";
+    kpisEl.innerHTML = "";
+    shiftsEl.innerHTML = `<p style="color:var(--muted);">Seleziona una classe per generare i turni.</p>`;
+    alertsEl.innerHTML = `<p style="color:var(--muted);">Nessun dato disponibile.</p>`;
+    return;
+  }
+
+  if (subtitleEl) {
+    subtitleEl.textContent = `Classe ${currentClass.name}${currentYear ? " - A.S. " + currentYear.label : ""}`;
+  }
+
+  const groupA = state.enrollments.filter(e => e.lab_group === "Gruppo A" || e.lab_group === "Gruppo 1").length;
+  const groupB = state.enrollments.filter(e => e.lab_group === "Gruppo B" || e.lab_group === "Gruppo 2").length;
+  const totalObs = state.observations.length;
+  const totalEvals = state.evaluations.length;
+
+  kpisEl.innerHTML = `
+    <div class="card" style="margin:0; padding:10px;">
+      <div class="student-meta">Alunni attivi</div>
+      <div style="font-size:1.3rem; font-weight:700;">${state.enrollments.length}</div>
+    </div>
+    <div class="card" style="margin:0; padding:10px;">
+      <div class="student-meta">Gruppi fissi annuali</div>
+      <div style="font-size:1.05rem; font-weight:600;">A/1: ${groupA} / B/2: ${groupB}</div>
+    </div>
+    <div class="card" style="margin:0; padding:10px;">
+      <div class="student-meta">Annotazioni laboratorio</div>
+      <div style="font-size:1.3rem; font-weight:700;">${totalObs}</div>
+    </div>
+    <div class="card" style="margin:0; padding:10px;">
+      <div class="student-meta">Verifiche / Griglie</div>
+      <div style="font-size:1.3rem; font-weight:700;">${totalEvals}</div>
+    </div>
+  `;
+
+  // Turni in ordine alfabetico + slittamento giorni saltati + spostamenti manuali
+  const shiftGroup = document.getElementById("dash-shift-group")?.value || "ALL";
+  const ordered = getOrderedShiftEnrollments(shiftGroup);
+  const machines = getMachinesForGrade(currentClass.grade || 3);
+
+  if (ordered.length === 0) {
+    shiftsEl.innerHTML = `<p style="color:var(--muted);">Nessuno studente nel gruppo selezionato.</p>`;
+  } else {
+    shiftsEl.innerHTML = ordered.map((enr, index) => {
+      const station = machines[index % machines.length];
+      const st = enr.students;
+      return `
+        <div class="student-item" style="padding:8px 10px;">
+          <div>
+            <strong>${index + 1}. ${st.last_name} ${st.first_name}</strong>
+            <span class="student-meta">(${enr.lab_group || "Gruppo unico"})</span>
+            <div class="student-meta">Postazione / Turno: <strong>${station}</strong></div>
+          </div>
+          <div class="row">
+            <button class="btn btn-outline btn-sm" type="button" onclick="window.moveStudentInShift('${enr.id}', 'up')" ${index === 0 ? "disabled" : ""}>Su</button>
+            <button class="btn btn-outline btn-sm" type="button" onclick="window.moveStudentInShift('${enr.id}', 'down')" ${index === ordered.length - 1 ? "disabled" : ""}>Giu</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  // Segnalazioni e annotazioni recenti
+  if (state.observations.length === 0 && state.evaluations.length === 0) {
+    alertsEl.innerHTML = `<p style="color:var(--muted);">Nessuna annotazione o verifica registrata per questa classe.</p>`;
+    return;
+  }
+
+  const recentObsHtml = state.observations.slice(0, 8).map(ob => {
+    const enr = state.enrollments.find(e => e.id === ob.enrollment_id);
+    const stName = enr ? `${enr.students.last_name} ${enr.students.first_name}`.trim() : "Studente";
+    return `
+      <div class="student-item" style="padding:8px 10px;">
+        <div>
+          <strong>${stName}</strong> - <span class="badge badge-red">${ob.tag}</span>
+          <div class="student-meta">${ob.subject} - ${new Date(ob.observed_at).toLocaleDateString("it-IT")}</div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const recentEvalsHtml = state.evaluations.slice(0, 5).map(ev => {
+    const enr = state.enrollments.find(e => e.id === ev.enrollment_id);
+    const stName = enr ? `${enr.students.last_name} ${enr.students.first_name}`.trim() : "Studente";
+    return `
+      <div class="student-item" style="padding:8px 10px;">
+        <div>
+          <strong>${stName}</strong> - ${ev.title} (${ev.subject})
+          <div class="student-meta">Data: ${ev.evaluated_at} - Voto: <strong>${ev.mastercom_grade}</strong>${ev.notes ? " (" + ev.notes + ")" : ""}</div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  alertsEl.innerHTML = `
+    ${recentObsHtml}
+    ${recentEvalsHtml}
+  `;
+}
+
+// ============================================================================
+// TAB 1: OFFICINA
 // ============================================================================
 function renderOfficinaList() {
   const container = document.getElementById("officina-student-list");
@@ -316,16 +568,16 @@ function renderOfficinaList() {
             ${lastGrade ? `<span class="badge badge-amber">Ultimo: ${lastGrade}</span>` : ""}
           </div>
           <div class="row">
-            <button class="btn btn-outline btn-sm" onclick="window.toggleTags('${enr.id}')">+ Negativo</button>
-            <button class="btn btn-primary btn-sm" onclick="window.openEvalForStudent('${enr.id}')">📋 Griglia</button>
+            <button class="btn btn-outline btn-sm" type="button" onclick="window.toggleTags('${enr.id}')">+ Negativo</button>
+            <button class="btn btn-primary btn-sm" type="button" onclick="window.openEvalForStudent('${enr.id}')">Griglia</button>
           </div>
         </div>
         <div id="tags-${enr.id}" class="quick-tags hidden">
-          ${QUICK_NEGATIVE_TAGS.map(t => `<button class="tag-btn" onclick="window.addQuickNegative('${enr.id}', '${t}')">${t}</button>`).join("")}
+          ${QUICK_NEGATIVE_TAGS.map(t => `<button class="tag-btn" type="button" onclick="window.addQuickNegative('${enr.id}', '${t}')">${t}</button>`).join("")}
         </div>
         ${stObs.length > 0 ? `
           <div style="font-size:0.78rem; color:var(--danger); margin-top:4px;">
-            Recenti (${subj}): ${stObs.slice(0, 3).map(o => `${o.tag} (${new Date(o.observed_at).toLocaleDateString("it-IT")})`).join(" • ")}
+            Recenti (${subj}): ${stObs.slice(0, 3).map(o => `${o.tag} (${new Date(o.observed_at).toLocaleDateString("it-IT")})`).join(" / ")}
           </div>` : ""}
       </div>
     `;
@@ -354,7 +606,7 @@ window.addQuickNegative = async (enrId, tag) => {
 };
 
 // ============================================================================
-// TAB 2 & MODALE: VALUTAZIONI GRIGLIA DIPARTIMENTO + CALENDARIO + PDF
+// TAB 2 & MODALE: VALUTAZIONI GRIGLIA DIPARTIMENTO + CALENDARIO + STAMPA
 // ============================================================================
 function resetRubricSelection() {
   state.selectedRubric = { ...DEFAULT_RUBRIC };
@@ -398,7 +650,7 @@ function updateModalNegativesPreview() {
     listEl.textContent = "Nessun negativo registrato in laboratorio per questa materia.";
   } else {
     listEl.innerHTML = obs.map(o =>
-      `• <strong>${o.tag}</strong> (${new Date(o.observed_at).toLocaleDateString("it-IT")})`
+      `- <strong>${o.tag}</strong> (${new Date(o.observed_at).toLocaleDateString("it-IT")})`
     ).join("<br>");
   }
 }
@@ -457,7 +709,7 @@ async function saveEvaluation(andPrint = false) {
   }
 
   document.getElementById("eval-modal-backdrop").style.display = "none";
-  showToast("Valutazione salvata con Griglia Dipartimento!");
+  showToast("Valutazione salvata con Griglia Dipartimento.");
   await loadClassDetails();
 
   if (andPrint && data) {
@@ -503,10 +755,10 @@ function renderEvaluationsList() {
         ${sortedDates.map(dateKey => {
           const dayData = eventsByDate.get(dateKey);
           return `
-            <div class="card" style="margin:0; padding:12px; border:1px solid var(--border); border-radius:10px; background:#fff;">
+            <div class="card" style="margin:0; padding:12px; border:1px solid var(--border); border-radius:8px; background:#fff;">
               <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:6px; margin-bottom:8px;">
                 <strong style="text-transform:capitalize;">${formatDateLabelIT(dateKey)}</strong>
-                <span class="badge badge-amber">${dayData.evals.length} voti • ${dayData.obs.length} note</span>
+                <span class="badge badge-amber">${dayData.evals.length} voti / ${dayData.obs.length} note</span>
               </div>
 
               ${dayData.evals.map(ev => {
@@ -514,12 +766,12 @@ function renderEvaluationsList() {
                 const stName = enr ? `${enr.students.last_name} ${enr.students.first_name}`.trim() : "Studente";
                 const allObs = enr ? getStudentObservationsText(enr.id) : "";
                 return `
-                  <div style="padding:6px 0; border-bottom:1px dashed #e2e8f0;">
+                  <div style="padding:6px 0; border-bottom:1px solid #f1f5f9;">
                     <div style="display:flex; justify-content:space-between; gap:6px;">
                       <strong>${stName}</strong>
                       <span class="badge badge-green">${ev.mastercom_grade}</span>
                     </div>
-                    <div style="font-size:0.78rem; color:var(--muted);">${ev.subject} — ${ev.title}</div>
+                    <div style="font-size:0.78rem; color:var(--muted);">${ev.subject} - ${ev.title}</div>
                     ${allObs ? `<div style="font-size:0.75rem; color:var(--danger); margin-top:2px;">Note: ${allObs}</div>` : ""}
                   </div>
                 `;
@@ -529,7 +781,7 @@ function renderEvaluationsList() {
                 const enr = state.enrollments.find(e => e.id === ob.enrollment_id);
                 const stName = enr ? `${enr.students.last_name} ${enr.students.first_name}`.trim() : "Studente";
                 return `
-                  <div style="padding:6px 0; border-bottom:1px dashed #e2e8f0;">
+                  <div style="padding:6px 0; border-bottom:1px solid #f1f5f9;">
                     <span class="badge badge-red">${ob.tag}</span>
                     <strong style="margin-left:4px;">${stName}</strong>
                     <div style="font-size:0.75rem; color:var(--muted);">${ob.subject}</div>
@@ -557,7 +809,7 @@ function renderEvaluationsList() {
     return `
       <div class="student-item">
         <div>
-          <div class="student-name">${stName} — <span style="color:var(--primary);">${ev.subject}: ${ev.title}</span></div>
+          <div class="student-name">${stName} - <span style="color:var(--primary);">${ev.subject}: ${ev.title}</span></div>
           <div class="student-meta">
             Data: ${ev.evaluated_at} | Griglia: C=${ev.competenze_score} + A=${ev.abilita_score} + K=${ev.conoscenze_score} = <strong>${ev.total_score}/10</strong>
             &rarr; Mastercom: <strong>${ev.mastercom_grade}</strong>
@@ -565,10 +817,10 @@ function renderEvaluationsList() {
           ${studentObs ? `<div style="font-size:0.78rem; color:var(--danger); margin-top:2px;">Annotazioni laboratorio: ${studentObs}</div>` : ""}
         </div>
         <div class="row">
-          <button class="btn btn-sm ${ev.synced_to_mastercom ? "btn-ok" : "btn-outline"}" onclick="window.toggleMastercomSync('${ev.id}', ${!ev.synced_to_mastercom})">
-            ${ev.synced_to_mastercom ? "✓ Su Mastercom" : "Segna su Mastercom"}
+          <button class="btn btn-sm ${ev.synced_to_mastercom ? "btn-ok" : "btn-outline"}" type="button" onclick="window.toggleMastercomSync('${ev.id}', ${!ev.synced_to_mastercom})">
+            ${ev.synced_to_mastercom ? "Su Mastercom" : "Segna su Mastercom"}
           </button>
-          <button class="btn btn-primary btn-sm" onclick="window.printEvaluationPDF('${ev.id}')">🖨️ PDF</button>
+          <button class="btn btn-primary btn-sm" type="button" onclick="window.printEvaluationPDF('${ev.id}')">Stampa PDF</button>
         </div>
       </div>
     `;
@@ -624,8 +876,8 @@ window.printEvaluationPDF = (evalId) => {
   const printArea = document.getElementById("print-area");
   printArea.innerHTML = `
     <div style="border:2px solid #000; padding:14px;">
-      <h2 style="text-align:center; margin:0 0 6px 0; font-size:13pt;">GRIGLIA PER LA VALUTAZIONE DELLE ATTIVITÀ DI LABORATORIO</h2>
-      <p style="text-align:center; margin:0 0 12px 0; font-size:10pt;">Dipartimento di Meccanica — Anno Scolastico ${yrLabel}</p>
+      <h2 style="text-align:center; margin:0 0 6px 0; font-size:13pt;">GRIGLIA PER LA VALUTAZIONE DELLE ATTIVITA DI LABORATORIO</h2>
+      <p style="text-align:center; margin:0 0 12px 0; font-size:10pt;">Dipartimento di Meccanica - Anno Scolastico ${yrLabel}</p>
       <table class="print-table">
         <tr>
           <td><strong>Studente:</strong> ${stName}</td>
@@ -655,7 +907,7 @@ window.printEvaluationPDF = (evalId) => {
             <td class="highlight-cell" style="text-align:center; font-size:12pt;">${compVal.toFixed(1)}</td>
           </tr>
           <tr>
-            <td><strong>Abilità</strong> nell'uso della strumentazione, macchine utensili tradizionali e CN, pannelli pneumatici, uso CAD/software specifici e autonomia operativa.</td>
+            <td><strong>Abilita</strong> nell'uso della strumentazione, macchine utensili tradizionali e CN, pannelli pneumatici, uso CAD/software specifici e autonomia operativa.</td>
             <td style="text-align:center;">5.0</td>
             <td class="highlight-cell">${descAbil[abilVal] || ""}</td>
             <td class="highlight-cell" style="text-align:center; font-size:12pt;">${abilVal.toFixed(1)}</td>
@@ -792,7 +1044,7 @@ async function loadLessonPlans() {
   container.innerHTML = state.lessonPlans.map(lp => `
     <div class="card">
       <div class="row" style="justify-content:space-between;">
-        <h2>[Classe ${lp.grade}ª - ${lp.subject}] ${lp.title}</h2>
+        <h2>[Classe ${lp.grade}a - ${lp.subject}] ${lp.title}</h2>
       </div>
       <div class="grid-2" style="font-size:0.88rem;">
         <div><strong>1. Grezzi da preparare:</strong><br>${lp.raw_materials || "-"}</div>
@@ -815,22 +1067,51 @@ function bindEvents() {
       document.querySelectorAll("nav.tabs button").forEach(b => b.classList.remove("active"));
       document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
       btn.classList.add("active");
-      document.getElementById(btn.dataset.tab).classList.remove("hidden");
+      const target = document.getElementById(btn.dataset.tab);
+      if (target) target.classList.remove("hidden");
     };
   });
 
-  document.getElementById("select-year").onchange = async (e) => {
+  document.getElementById("select-year")?.addEventListener("change", async (e) => {
     state.currentYearId = e.target.value;
     await loadClassesForYear();
-  };
-  document.getElementById("select-class").onchange = async (e) => {
+  });
+  document.getElementById("select-class")?.addEventListener("change", async (e) => {
     state.currentClassId = e.target.value;
     await loadClassDetails();
-  };
-  document.getElementById("select-group").onchange = renderOfficinaList;
-  document.getElementById("officina-subject").onchange = renderOfficinaList;
-  document.getElementById("search-student").oninput = renderOfficinaList;
-  document.getElementById("filter-eval-subject").onchange = renderEvaluationsList;
+  });
+  document.getElementById("select-group")?.addEventListener("change", renderOfficinaList);
+  document.getElementById("officina-subject")?.addEventListener("change", renderOfficinaList);
+  document.getElementById("search-student")?.addEventListener("input", renderOfficinaList);
+  document.getElementById("filter-eval-subject")?.addEventListener("change", renderEvaluationsList);
+
+  document.getElementById("dash-shift-group")?.addEventListener("change", renderDashboard);
+
+  document.getElementById("btn-skipped-minus")?.addEventListener("click", () => {
+    if (!state.currentClassId) return;
+    const next = Math.max(0, getSkippedDaysForClass(state.currentClassId) - 1);
+    setSkippedDaysForClass(state.currentClassId, next);
+    renderDashboard();
+    showToast(`Giorni saltati: ${next}`);
+  });
+
+  document.getElementById("btn-skipped-plus")?.addEventListener("click", () => {
+    if (!state.currentClassId) return;
+    const next = getSkippedDaysForClass(state.currentClassId) + 1;
+    setSkippedDaysForClass(state.currentClassId, next);
+    renderDashboard();
+    showToast(`Giorni saltati: ${next}`);
+  });
+
+  document.getElementById("btn-reset-shift-overrides")?.addEventListener("click", () => {
+    if (!state.currentClassId) return;
+    delete state.shiftOverrides[state.currentClassId];
+    delete state.skippedDays[state.currentClassId];
+    saveJSON(SHIFT_OVERRIDES_STORAGE_KEY, state.shiftOverrides);
+    saveJSON(SKIPPED_DAYS_STORAGE_KEY, state.skippedDays);
+    renderDashboard();
+    showToast("Ordine alfabetico e giorni saltati ripristinati.");
+  });
 
   const btnCal = document.getElementById("btn-view-calendar");
   const btnGrid = document.getElementById("btn-view-grid");
@@ -849,12 +1130,12 @@ function bindEvents() {
     };
   }
 
-  document.getElementById("btn-open-new-eval").onclick = () => window.openEvalForStudent();
-  document.getElementById("btn-close-eval-modal").onclick = () => {
+  document.getElementById("btn-open-new-eval")?.addEventListener("click", () => window.openEvalForStudent());
+  document.getElementById("btn-close-eval-modal")?.addEventListener("click", () => {
     document.getElementById("eval-modal-backdrop").style.display = "none";
-  };
-  document.getElementById("eval-student-select").onchange = updateModalNegativesPreview;
-  document.getElementById("eval-subject-select").onchange = updateModalNegativesPreview;
+  });
+  document.getElementById("eval-student-select")?.addEventListener("change", updateModalNegativesPreview);
+  document.getElementById("eval-subject-select")?.addEventListener("change", updateModalNegativesPreview);
 
   document.querySelectorAll(".rubric-options").forEach(groupEl => {
     const groupName = groupEl.dataset.group;
@@ -868,11 +1149,11 @@ function bindEvents() {
     });
   });
 
-  document.getElementById("btn-save-eval").onclick = () => saveEvaluation(false);
-  document.getElementById("btn-print-preview").onclick = () => saveEvaluation(true);
+  document.getElementById("btn-save-eval")?.addEventListener("click", () => saveEvaluation(false));
+  document.getElementById("btn-print-preview")?.addEventListener("click", () => saveEvaluation(true));
 
-  document.getElementById("btn-add-plan").onclick = async () => {
-    if (!state.currentClassId) return showToast("Seleziona prima una classe!");
+  document.getElementById("btn-add-plan")?.addEventListener("click", async () => {
+    if (!state.currentClassId) return showToast("Seleziona prima una classe.");
     const title = document.getElementById("plan-title").value.trim();
     if (!title) return showToast("Inserisci il titolo della prova.");
     const { error } = await supabase.from("planned_assessments").insert({
@@ -885,12 +1166,12 @@ function bindEvents() {
     });
     if (error) return showToast("Errore salvataggio prova: " + error.message);
     document.getElementById("plan-title").value = "";
-    showToast("Prova minima programmata!");
+    showToast("Prova minima programmata.");
     await loadClassDetails();
-  };
+  });
 
-  document.getElementById("btn-import-absences").onclick = async () => {
-    if (!state.currentClassId) return showToast("Seleziona prima una classe!");
+  document.getElementById("btn-import-absences")?.addEventListener("click", async () => {
+    if (!state.currentClassId) return showToast("Seleziona prima una classe.");
     const raw = document.getElementById("cdc-import-text").value.trim();
     const cdcLabel = document.getElementById("cdc-label").value.trim() || "CdC";
     if (!raw) return;
@@ -926,7 +1207,7 @@ function bindEvents() {
 
     showToast(`Importate assenze per ${matched} studenti (${cdcLabel}).`);
     await loadClassDetails();
-  };
+  });
 }
 
 // ============================================================================
