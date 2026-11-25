@@ -1,6 +1,6 @@
 {
-  "name": "Lab Meccanica Manager",
-  "short_name": "LabMeccanica",
+  "name": "SchoolManager",
+  "short_name": "SchoolManager",
   "description": "Gestione officina, griglie di valutazione e registro di laboratorio",
   "start_url": "./index.html",
   "display": "standalone",
