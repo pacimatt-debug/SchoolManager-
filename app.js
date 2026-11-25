@@ -18,7 +18,8 @@ const state = {
   plannedAssessments: [],
   absences: [],
   lessonPlans: [],
-  selectedRubric: { ...DEFAULT_RUBRIC }
+  selectedRubric: { ...DEFAULT_RUBRIC },
+  evalViewMode: "calendar" // "calendar" oppure "grid"
 };
 
 const QUICK_NEGATIVE_TAGS = [
@@ -56,20 +57,51 @@ function getMachinesForGrade(grade) {
     : ["Tornio 1", "Tornio 2", "Tornio 3", "Fresatrice"];
 }
 
+function formatDateKey(dateInput) {
+  const d = new Date(dateInput);
+  if (Number.isNaN(d.getTime())) return String(dateInput).slice(0, 10);
+  return d.toISOString().split("T")[0];
+}
+
+function formatDateLabelIT(isoDate) {
+  const parts = String(isoDate).split("-");
+  if (parts.length !== 3) return isoDate;
+  const [y, m, d] = parts;
+  const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
+  return dateObj.toLocaleDateString("it-IT", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  });
+}
+
+function getStudentObservationsText(enrollmentId) {
+  const list = state.observations.filter(o => o.enrollment_id === enrollmentId);
+  if (list.length === 0) return "";
+  return list
+    .map(o => `${o.tag} (${new Date(o.observed_at).toLocaleDateString("it-IT")})`)
+    .join(" • ");
+}
+
 // ============================================================================
 // AUTENTICAZIONE PRIVATA
 // ============================================================================
 async function initAuth() {
-  // In Supabase v2 onAuthStateChange scatta subito con INITIAL_SESSION:
-  // evitiamo il doppio bootstrapData() all'avvio.
   supabase.auth.onAuthStateChange((_event, session) => {
     handleSession(session);
   });
 
-  document.getElementById("btn-login-google").onclick = () =>
-    supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.href } });
+  const btnGoogle = document.getElementById("btn-login-google");
+  if (btnGoogle) {
+    btnGoogle.onclick = () =>
+      supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.href } });
+  }
 
-  document.getElementById("btn-logout").onclick = () => supabase.auth.signOut();
+  const btnLogout = document.getElementById("btn-logout");
+  if (btnLogout) {
+    btnLogout.onclick = () => supabase.auth.signOut();
+  }
 }
 
 async function handleSession(session) {
@@ -84,10 +116,9 @@ async function handleSession(session) {
     return;
   }
 
-  // Controllo aggiuntivo email privata se configurata
   if (ALLOWED_EMAIL && ALLOWED_EMAIL !== "tua.email@esempio.it" && session.user.email !== ALLOWED_EMAIL) {
     await supabase.auth.signOut();
-    loginErr.textContent = "Accesso negato: account non autorizzato.";
+    if (loginErr) loginErr.textContent = "Accesso negato: account non autorizzato.";
     return;
   }
 
@@ -128,22 +159,22 @@ async function bootstrapData() {
 function renderYearSelectors() {
   const sel = document.getElementById("select-year");
   const promSel = document.getElementById("promote-target-year");
-  sel.innerHTML = "";
-  promSel.innerHTML = "";
+  if (sel) sel.innerHTML = "";
+  if (promSel) promSel.innerHTML = "";
 
   if (state.years.length === 0) {
-    sel.innerHTML = `<option value="">Nessun anno (crealo in Classi)</option>`;
+    if (sel) sel.innerHTML = `<option value="">Nessun anno (crealo in Classi)</option>`;
     return;
   }
   state.years.forEach(y => {
-    sel.innerHTML += `<option value="${y.id}" ${y.id === state.currentYearId ? "selected" : ""}>${y.label}</option>`;
-    promSel.innerHTML += `<option value="${y.id}">${y.label}</option>`;
+    if (sel) sel.innerHTML += `<option value="${y.id}" ${y.id === state.currentYearId ? "selected" : ""}>${y.label}</option>`;
+    if (promSel) promSel.innerHTML += `<option value="${y.id}">${y.label}</option>`;
   });
 }
 
 async function loadClassesForYear() {
   const classSel = document.getElementById("select-class");
-  classSel.innerHTML = "";
+  if (classSel) classSel.innerHTML = "";
 
   if (!state.currentYearId) {
     state.classes = [];
@@ -169,11 +200,13 @@ async function loadClassesForYear() {
       state.currentClassId = state.classes[0].id;
     }
     state.classes.forEach(c => {
-      classSel.innerHTML += `<option value="${c.id}" ${c.id === state.currentClassId ? "selected" : ""}>Classe ${c.name}</option>`;
+      if (classSel) {
+        classSel.innerHTML += `<option value="${c.id}" ${c.id === state.currentClassId ? "selected" : ""}>Classe ${c.name}</option>`;
+      }
     });
   } else {
     state.currentClassId = null;
-    classSel.innerHTML = `<option value="">Nessuna classe</option>`;
+    if (classSel) classSel.innerHTML = `<option value="">Nessuna classe</option>`;
   }
 
   await loadClassDetails();
@@ -233,8 +266,8 @@ async function loadClassDetails() {
 }
 
 function getFilteredEnrollments() {
-  const grp = document.getElementById("select-group").value;
-  const query = document.getElementById("search-student").value.trim().toLowerCase();
+  const grp = document.getElementById("select-group")?.value || "ALL";
+  const query = (document.getElementById("search-student")?.value || "").trim().toLowerCase();
   return state.enrollments.filter(e => {
     if (grp !== "ALL" && e.lab_group !== grp) return false;
     if (query) {
@@ -257,6 +290,7 @@ function renderAllViews() {
 // ============================================================================
 function renderOfficinaList() {
   const container = document.getElementById("officina-student-list");
+  if (!container) return;
   const list = getFilteredEnrollments();
 
   if (list.length === 0) {
@@ -264,7 +298,7 @@ function renderOfficinaList() {
     return;
   }
 
-  const subj = document.getElementById("officina-subject").value;
+  const subj = document.getElementById("officina-subject")?.value || "Tecnologia";
 
   container.innerHTML = list.map(enr => {
     const st = enr.students;
@@ -304,7 +338,7 @@ window.toggleTags = (enrId) => {
 };
 
 window.addQuickNegative = async (enrId, tag) => {
-  const subject = document.getElementById("officina-subject").value;
+  const subject = document.getElementById("officina-subject")?.value || "Tecnologia";
   const { error } = await supabase.from("observations").insert({
     owner_id: state.user.id,
     enrollment_id: enrId,
@@ -320,7 +354,7 @@ window.addQuickNegative = async (enrId, tag) => {
 };
 
 // ============================================================================
-// TAB 2 & MODALE: VALUTAZIONI GRIGLIA DIPARTIMENTO + PDF UFFICIALE
+// TAB 2 & MODALE: VALUTAZIONI GRIGLIA DIPARTIMENTO + CALENDARIO + PDF
 // ============================================================================
 function resetRubricSelection() {
   state.selectedRubric = { ...DEFAULT_RUBRIC };
@@ -341,7 +375,7 @@ window.openEvalForStudent = (enrId = null) => {
     `<option value="${e.id}" ${e.id === enrId ? "selected" : ""}>${e.students.last_name} ${e.students.first_name}</option>`
   ).join("");
 
-  document.getElementById("eval-subject-select").value = document.getElementById("officina-subject").value;
+  document.getElementById("eval-subject-select").value = document.getElementById("officina-subject")?.value || "Tecnologia";
   document.getElementById("eval-date-input").value = todayISO();
   document.getElementById("eval-title-input").value = "";
   document.getElementById("eval-notes-input").value = "";
@@ -354,9 +388,10 @@ window.openEvalForStudent = (enrId = null) => {
 };
 
 function updateModalNegativesPreview() {
-  const enrId = document.getElementById("eval-student-select").value;
-  const subj = document.getElementById("eval-subject-select").value;
+  const enrId = document.getElementById("eval-student-select")?.value;
+  const subj = document.getElementById("eval-subject-select")?.value;
   const listEl = document.getElementById("eval-negatives-list");
+  if (!listEl) return;
   const obs = state.observations.filter(o => o.enrollment_id === enrId && o.subject === subj);
 
   if (obs.length === 0) {
@@ -432,17 +467,93 @@ async function saveEvaluation(andPrint = false) {
 
 function renderEvaluationsList() {
   const container = document.getElementById("evaluations-list");
-  const filterSubj = document.getElementById("filter-eval-subject").value;
+  if (!container) return;
+  const filterSubj = document.getElementById("filter-eval-subject")?.value || "ALL";
 
-  const filtered = state.evaluations.filter(ev => filterSubj === "ALL" || ev.subject === filterSubj);
-  if (filtered.length === 0) {
+  const filteredEvals = state.evaluations.filter(
+    ev => filterSubj === "ALL" || ev.subject === filterSubj
+  );
+
+  const eventsByDate = new Map();
+  const ensureDay = (dateKey) => {
+    if (!eventsByDate.has(dateKey)) {
+      eventsByDate.set(dateKey, { evals: [], obs: [] });
+    }
+    return eventsByDate.get(dateKey);
+  };
+
+  filteredEvals.forEach(ev => {
+    ensureDay(formatDateKey(ev.evaluated_at)).evals.push(ev);
+  });
+
+  state.observations.forEach(ob => {
+    ensureDay(formatDateKey(ob.observed_at)).obs.push(ob);
+  });
+
+  if (state.evalViewMode === "calendar") {
+    const sortedDates = Array.from(eventsByDate.keys()).sort((a, b) => b.localeCompare(a));
+
+    if (sortedDates.length === 0) {
+      container.innerHTML = `<p style="color:var(--muted);">Nessun evento a calendario per questa classe.</p>`;
+      return;
+    }
+
+    container.innerHTML = `
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); gap:12px;">
+        ${sortedDates.map(dateKey => {
+          const dayData = eventsByDate.get(dateKey);
+          return `
+            <div class="card" style="margin:0; padding:12px; border:1px solid var(--border); border-radius:10px; background:#fff;">
+              <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:6px; margin-bottom:8px;">
+                <strong style="text-transform:capitalize;">${formatDateLabelIT(dateKey)}</strong>
+                <span class="badge badge-amber">${dayData.evals.length} voti • ${dayData.obs.length} note</span>
+              </div>
+
+              ${dayData.evals.map(ev => {
+                const enr = state.enrollments.find(e => e.id === ev.enrollment_id);
+                const stName = enr ? `${enr.students.last_name} ${enr.students.first_name}`.trim() : "Studente";
+                const allObs = enr ? getStudentObservationsText(enr.id) : "";
+                return `
+                  <div style="padding:6px 0; border-bottom:1px dashed #e2e8f0;">
+                    <div style="display:flex; justify-content:space-between; gap:6px;">
+                      <strong>${stName}</strong>
+                      <span class="badge badge-green">${ev.mastercom_grade}</span>
+                    </div>
+                    <div style="font-size:0.78rem; color:var(--muted);">${ev.subject} — ${ev.title}</div>
+                    ${allObs ? `<div style="font-size:0.75rem; color:var(--danger); margin-top:2px;">Note: ${allObs}</div>` : ""}
+                  </div>
+                `;
+              }).join("")}
+
+              ${dayData.obs.map(ob => {
+                const enr = state.enrollments.find(e => e.id === ob.enrollment_id);
+                const stName = enr ? `${enr.students.last_name} ${enr.students.first_name}`.trim() : "Studente";
+                return `
+                  <div style="padding:6px 0; border-bottom:1px dashed #e2e8f0;">
+                    <span class="badge badge-red">${ob.tag}</span>
+                    <strong style="margin-left:4px;">${stName}</strong>
+                    <div style="font-size:0.75rem; color:var(--muted);">${ob.subject}</div>
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          `;
+        }).join("")}
+      </div>
+    `;
+    return;
+  }
+
+  if (filteredEvals.length === 0) {
     container.innerHTML = `<p style="color:var(--muted);">Nessuna valutazione registrata per questa selezione.</p>`;
     return;
   }
 
-  container.innerHTML = filtered.map(ev => {
+  container.innerHTML = filteredEvals.map(ev => {
     const enr = state.enrollments.find(e => e.id === ev.enrollment_id);
-    const stName = enr ? `${enr.students.last_name} ${enr.students.first_name}` : "Studente";
+    const stName = enr ? `${enr.students.last_name} ${enr.students.first_name}`.trim() : "Studente";
+    const studentObs = enr ? getStudentObservationsText(enr.id) : ev.linked_negatives_summary;
+
     return `
       <div class="student-item">
         <div>
@@ -451,7 +562,7 @@ function renderEvaluationsList() {
             Data: ${ev.evaluated_at} | Griglia: C=${ev.competenze_score} + A=${ev.abilita_score} + K=${ev.conoscenze_score} = <strong>${ev.total_score}/10</strong>
             &rarr; Mastercom: <strong>${ev.mastercom_grade}</strong>
           </div>
-          ${ev.linked_negatives_summary ? `<div style="font-size:0.78rem; color:var(--danger);">Negativi collegati: ${ev.linked_negatives_summary}</div>` : ""}
+          ${studentObs ? `<div style="font-size:0.78rem; color:var(--danger); margin-top:2px;">Annotazioni laboratorio: ${studentObs}</div>` : ""}
         </div>
         <div class="row">
           <button class="btn btn-sm ${ev.synced_to_mastercom ? "btn-ok" : "btn-outline"}" onclick="window.toggleMastercomSync('${ev.id}', ${!ev.synced_to_mastercom})">
@@ -480,7 +591,7 @@ window.printEvaluationPDF = (evalId) => {
   const cls = state.classes.find(c => c.id === state.currentClassId);
   const yr = state.years.find(y => y.id === state.currentYearId);
 
-  const stName = enr ? `${enr.students.last_name} ${enr.students.first_name}` : "";
+  const stName = enr ? `${enr.students.last_name} ${enr.students.first_name}`.trim() : "";
   const clsName = cls ? cls.name : "";
   const yrLabel = yr ? yr.label : "";
 
@@ -586,6 +697,7 @@ window.printEvaluationPDF = (evalId) => {
 // ============================================================================
 function renderPlannedList() {
   const container = document.getElementById("planned-list");
+  if (!container) return;
   if (state.plannedAssessments.length === 0) {
     container.innerHTML = `<p style="color:var(--muted);">Nessuna prova minima programmata per questa classe.</p>`;
     return;
@@ -614,6 +726,7 @@ function renderPlannedList() {
 // ============================================================================
 function renderCdcSummary() {
   const container = document.getElementById("cdc-summary-table");
+  if (!container) return;
   if (state.enrollments.length === 0) {
     container.innerHTML = `<p style="color:var(--muted);">Seleziona una classe con studenti.</p>`;
     return;
@@ -642,7 +755,6 @@ function renderCdcSummary() {
       <tbody>
         ${state.enrollments.map(enr => {
           const obsCount = state.observations.filter(o => o.enrollment_id === enr.id).length;
-          // state.absences è ordinato per created_at desc: prende l'ultimo CdC importato
           const abs = state.absences.find(a => a.enrollment_id === enr.id);
           return `
             <tr style="border-bottom:1px solid var(--border);">
@@ -672,6 +784,7 @@ async function loadLessonPlans() {
   }
   state.lessonPlans = data || [];
   const container = document.getElementById("lesson-plans-list");
+  if (!container) return;
   if (state.lessonPlans.length === 0) {
     container.innerHTML = `<p style="color:var(--muted);">Nessuna scheda lezione salvata.</p>`;
     return;
@@ -697,7 +810,6 @@ async function loadLessonPlans() {
 // EVENT LISTENERS PRINCIPALI
 // ============================================================================
 function bindEvents() {
-  // Navigazione Tab
   document.querySelectorAll("nav.tabs button").forEach(btn => {
     btn.onclick = () => {
       document.querySelectorAll("nav.tabs button").forEach(b => b.classList.remove("active"));
@@ -707,7 +819,6 @@ function bindEvents() {
     };
   });
 
-  // Selettori Header
   document.getElementById("select-year").onchange = async (e) => {
     state.currentYearId = e.target.value;
     await loadClassesForYear();
@@ -721,7 +832,23 @@ function bindEvents() {
   document.getElementById("search-student").oninput = renderOfficinaList;
   document.getElementById("filter-eval-subject").onchange = renderEvaluationsList;
 
-  // Modale Valutazione Griglia
+  const btnCal = document.getElementById("btn-view-calendar");
+  const btnGrid = document.getElementById("btn-view-grid");
+  if (btnCal && btnGrid) {
+    btnCal.onclick = () => {
+      state.evalViewMode = "calendar";
+      btnCal.classList.replace("btn-outline", "btn-primary");
+      btnGrid.classList.replace("btn-primary", "btn-outline");
+      renderEvaluationsList();
+    };
+    btnGrid.onclick = () => {
+      state.evalViewMode = "grid";
+      btnGrid.classList.replace("btn-outline", "btn-primary");
+      btnCal.classList.replace("btn-primary", "btn-outline");
+      renderEvaluationsList();
+    };
+  }
+
   document.getElementById("btn-open-new-eval").onclick = () => window.openEvalForStudent();
   document.getElementById("btn-close-eval-modal").onclick = () => {
     document.getElementById("eval-modal-backdrop").style.display = "none";
@@ -744,7 +871,6 @@ function bindEvents() {
   document.getElementById("btn-save-eval").onclick = () => saveEvaluation(false);
   document.getElementById("btn-print-preview").onclick = () => saveEvaluation(true);
 
-  // Aggiungi Prova Minima
   document.getElementById("btn-add-plan").onclick = async () => {
     if (!state.currentClassId) return showToast("Seleziona prima una classe!");
     const title = document.getElementById("plan-title").value.trim();
@@ -763,7 +889,6 @@ function bindEvents() {
     await loadClassDetails();
   };
 
-  // Importa Assenze CdC (mantiene storico di CdC precedenti filtrando per cdc_label)
   document.getElementById("btn-import-absences").onclick = async () => {
     if (!state.currentClassId) return showToast("Seleziona prima una classe!");
     const raw = document.getElementById("cdc-import-text").value.trim();
@@ -787,169 +912,25 @@ function bindEvents() {
       });
 
       if (found) {
-        const { error: delErr } = await supabase
-          .from("absences")
-          .delete()
-          .eq("enrollment_id", found.id)
-          .eq("cdc_label", cdcLabel);
-        if (delErr) {
-          showToast("Errore aggiornamento assenze: " + delErr.message);
-          return;
-        }
+        await supabase.from("absences").delete().eq("enrollment_id", found.id).eq("cdc_label", cdcLabel);
         const { error: insErr } = await supabase.from("absences").insert({
           owner_id: state.user.id,
           enrollment_id: found.id,
+          cdc_label: cdcLabel,
           hours_absent: hours,
-          lab_sessions_missed: labMissed,
-          cdc_label: cdcLabel
+          lab_sessions_missed: labMissed
         });
-        if (insErr) {
-          showToast("Errore inserimento assenze: " + insErr.message);
-          return;
-        }
-        matched++;
+        if (!insErr) matched++;
       }
     }
-    showToast(`Importate assenze (${cdcLabel}) per ${matched} studenti!`);
+
+    showToast(`Importate assenze per ${matched} studenti (${cdcLabel}).`);
     await loadClassDetails();
-  };
-
-  // Salva Scheda Lezione
-  document.getElementById("btn-save-lp").onclick = async () => {
-    const title = document.getElementById("lp-title").value.trim();
-    if (!title) return showToast("Inserisci un titolo per la scheda lezione.");
-    const { error } = await supabase.from("lesson_plans").insert({
-      owner_id: state.user.id,
-      grade: parseInt(document.getElementById("lp-grade").value, 10),
-      subject: document.getElementById("lp-subject").value,
-      title,
-      raw_materials: document.getElementById("lp-raw").value.trim(),
-      tools_setup: document.getElementById("lp-tools").value.trim(),
-      briefing_points: document.getElementById("lp-briefing").value.trim(),
-      overflow_task: document.getElementById("lp-overflow").value.trim()
-    });
-    if (error) return showToast("Errore salvataggio scheda: " + error.message);
-    document.getElementById("lp-title").value = "";
-    showToast("Scheda lezione salvata!");
-    await loadLessonPlans();
-  };
-
-  // Crea Anno Scolastico
-  document.getElementById("btn-create-year").onclick = async () => {
-    const label = document.getElementById("new-year-label").value.trim();
-    if (!label) return;
-    const { error } = await supabase.from("school_years").insert({
-      owner_id: state.user.id,
-      label,
-      is_current: state.years.length === 0
-    });
-    if (error) return showToast("Errore creazione anno: " + error.message);
-    document.getElementById("new-year-label").value = "";
-    showToast("Anno scolastico creato!");
-    await bootstrapData();
-  };
-
-  // Crea Classe
-  document.getElementById("btn-create-class").onclick = async () => {
-    if (!state.currentYearId) return showToast("Crea prima un anno scolastico!");
-    const name = document.getElementById("new-class-name").value.trim();
-    const grade = parseInt(document.getElementById("new-class-grade").value, 10);
-    if (!name) return;
-
-    const { error } = await supabase.from("classes").insert({
-      owner_id: state.user.id,
-      school_year_id: state.currentYearId,
-      name,
-      grade,
-      machines: getMachinesForGrade(grade)
-    });
-    if (error) return showToast("Errore creazione classe: " + error.message);
-    document.getElementById("new-class-name").value = "";
-    showToast(`Classe ${name} creata!`);
-    await loadClassesForYear();
-  };
-
-  // Importa Studenti in blocco
-  document.getElementById("btn-bulk-students").onclick = async () => {
-    if (!state.currentClassId || !state.currentYearId) return showToast("Seleziona prima una classe!");
-    const raw = document.getElementById("bulk-students-text").value.trim();
-    if (!raw) return;
-
-    const lines = raw.split("\n");
-    let count = 0;
-
-    for (const line of lines) {
-      const [fullNamePart, groupPart] = line.split(";").map(s => s.trim());
-      if (!fullNamePart) continue;
-      const tokens = fullNamePart.split(/\s+/);
-      const last_name = tokens[0];
-      const first_name = tokens.slice(1).join(" ") || "-";
-      const lab_group = groupPart || "Gruppo A";
-
-      const { data: st, error: stErr } = await supabase.from("students").insert({
-        owner_id: state.user.id,
-        last_name,
-        first_name
-      }).select().single();
-
-      if (stErr || !st) {
-        showToast("Errore importazione studente: " + (stErr?.message || "sconosciuto"));
-        continue;
-      }
-
-      const { error: enrErr } = await supabase.from("enrollments").insert({
-        owner_id: state.user.id,
-        student_id: st.id,
-        class_id: state.currentClassId,
-        school_year_id: state.currentYearId,
-        lab_group
-      });
-      if (enrErr) {
-        showToast("Errore iscrizione studente: " + enrErr.message);
-        continue;
-      }
-      count++;
-    }
-    document.getElementById("bulk-students-text").value = "";
-    showToast(`Importati ${count} studenti!`);
-    await loadClassDetails();
-  };
-
-  // Promozione Annuale 3a -> 4a -> 5a
-  document.getElementById("btn-promote-class").onclick = async () => {
-    if (!state.currentClassId || state.enrollments.length === 0) return showToast("Nessuno studente da promuovere.");
-    const targetYearId = document.getElementById("promote-target-year").value;
-    const newClassName = document.getElementById("promote-new-class-name").value.trim();
-    if (!targetYearId || !newClassName) return showToast("Indica anno di destinazione e nome nuova classe.");
-
-    const currCls = state.classes.find(c => c.id === state.currentClassId);
-    const nextGrade = Math.min(5, (currCls ? currCls.grade : 3) + 1);
-
-    const { data: newCls, error } = await supabase.from("classes").insert({
-      owner_id: state.user.id,
-      school_year_id: targetYearId,
-      name: newClassName,
-      grade: nextGrade,
-      machines: getMachinesForGrade(nextGrade)
-    }).select().single();
-
-    if (error || !newCls) return showToast("Errore creazione nuova classe: " + (error?.message || ""));
-
-    let promoted = 0;
-    for (const enr of state.enrollments) {
-      const { error: enrErr } = await supabase.from("enrollments").insert({
-        owner_id: state.user.id,
-        student_id: enr.student_id,
-        class_id: newCls.id,
-        school_year_id: targetYearId,
-        lab_group: enr.lab_group
-      });
-      if (!enrErr) promoted++;
-    }
-
-    showToast(`Promossi ${promoted} studenti in ${newClassName}!`);
   };
 }
 
+// ============================================================================
+// AVVIO
+// ============================================================================
 bindEvents();
 initAuth();
