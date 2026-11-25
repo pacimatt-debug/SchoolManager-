@@ -174,7 +174,7 @@
       border-right: 1px solid #2b2b2e;
       text-align: center;
       white-space: nowrap;
-      min-width: 78px;
+      min-width: 86px;
     }
     th:last-child, td:last-child { border-right: none; }
     tbody tr:last-child th, tbody tr:last-child td { border-bottom: none; }
@@ -629,6 +629,7 @@
       const st = document.getElementById("s-status");
       const cl = document.getElementById("s-classe").value;
       const iscrizioneId = document.getElementById("s-alunno").value;
+      const materia = document.getElementById("s-materia").value;
 
       if (!cl || !iscrizioneId) {
         alert("Seleziona classe e alunno.");
@@ -643,7 +644,7 @@
         classe_anno_id: classeAnnoId,
         data_evento: oggiIso,
         tipo: "annotazione",
-        materia: null,
+        materia: materia,
         verso_annotazione: isPos ? "pos" : "neg",
         descrizione_negativa: isPos ? null : (selezioneAnnotazione.desc || null)
       };
@@ -797,7 +798,7 @@
                 classe_anno_id: classeAnnoId,
                 data_evento: dataEvento,
                 tipo: "annotazione",
-                materia: null,
+                materia: materia,
                 argomento: null,
                 verso_annotazione: verso,
                 descrizione_negativa: verso === "neg" ? item.desc : ""
@@ -884,29 +885,25 @@
         const bodyRows = iscr.map(i => {
           const cells = colList.map(c => {
             const r = mapReg.get(`${i.id}__${c.id}`);
-            if (!r) return "<td>·</td>";
+            if (!r) return "<td></td>";
             if (r.voto) return `<td><strong>${r.voto}</strong></td>`;
             if (r.annotazione_punti !== null) {
               const isPos = r.annotazione_punti > 0;
               const cls = isPos ? "color:var(--pos);" : "color:var(--neg);";
-              const segno = isPos ? "+" : "-";
-              return `<td><span style="${cls}font-weight:800;font-size:15px;">${segno}</span></td>`;
+              let testo = "";
+              if (isPos) {
+                testo = c.descrizione_negativa ? c.descrizione_negativa : "+";
+              } else {
+                testo = c.descrizione_negativa ? c.descrizione_negativa : "-";
+              }
+              return `<td><span style="${cls}font-weight:700;">${testo}</span></td>`;
             }
-            return "<td>·</td>";
+            return "<td></td>";
           }).join("");
           return `<tr><td><strong>${i.alunni.nome_cognome}</strong></td>${cells}</tr>`;
         }).join("");
 
-        const footerCells = colList.map(c => {
-          let label = "";
-          if (c.tipo === "verifica") {
-            label = c.materia || "";
-          } else if (c.tipo === "annotazione" && c.verso_annotazione === "neg") {
-            label = c.descrizione_negativa || "";
-          }
-          return `<td>${label}</td>`;
-        }).join("");
-
+        const footerCells = colList.map(c => `<td>${c.materia || ""}</td>`).join("");
         const footerRow = `<tr class="footer-row"><td>Dettaglio</td>${footerCells}</tr>`;
 
         table.innerHTML = thead + "<tbody>" + bodyRows + footerRow + "</tbody>";
