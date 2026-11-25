@@ -1,935 +1,660 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, ALLOWED_EMAIL } from "./config.js";
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-const DEFAULT_RUBRIC = { competenze: 1.7, abilita: 3.1, conoscenze: 1.2 };
-
-// Stato globale dell'app
-const state = {
-  user: null,
-  years: [],
-  currentYearId: null,
-  classes: [],
-  currentClassId: null,
-  enrollments: [],
-  observations: [],
-  evaluations: [],
-  plannedAssessments: [],
-  absences: [],
-  lessonPlans: [],
-  selectedRubric: { ...DEFAULT_RUBRIC },
-  evalViewMode: "calendar" // "calendar" oppure "grid"
-};
-
-const QUICK_NEGATIVE_TAGS = [
-  "Senza DPI / Camice",
-  "Aiuto continuo",
-  "Distrazione / Smartphone",
-  "Errore quota / Tolleranza",
-  "Postazione disordinata",
-  "Ciclo / Parametri errati"
-];
-
-// ============================================================================
-// UTILITY UI
-// ============================================================================
-function showToast(msg) {
-  const el = document.getElementById("toast");
-  el.textContent = msg;
-  el.style.display = "block";
-  clearTimeout(window._toastTimer);
-  window._toastTimer = setTimeout(() => { el.style.display = "none"; }, 2600);
-}
-
-function roundMastercom(val) {
-  return (Math.round(val * 2) / 2).toFixed(2);
-}
-
-function todayISO() {
-  return new Date().toISOString().split("T")[0];
-}
-
-function getMachinesForGrade(grade) {
-  return grade === 3
-    ? ["Tornio 1", "Tornio 2", "Tornio 3", "Saldatrice 1", "Saldatrice 2"]
-    : ["Tornio 1", "Tornio 2", "Tornio 3", "Fresatrice"];
-}
-
-function formatDateKey(dateInput) {
-  const d = new Date(dateInput);
-  if (Number.isNaN(d.getTime())) return String(dateInput).slice(0, 10);
-  return d.toISOString().split("T")[0];
-}
-
-function formatDateLabelIT(isoDate) {
-  const parts = String(isoDate).split("-");
-  if (parts.length !== 3) return isoDate;
-  const [y, m, d] = parts;
-  const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
-  return dateObj.toLocaleDateString("it-IT", {
-    weekday: "short",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric"
-  });
-}
-
-function getStudentObservationsText(enrollmentId) {
-  const list = state.observations.filter(o => o.enrollment_id === enrollmentId);
-  if (list.length === 0) return "";
-  return list
-    .map(o => `${o.tag} (${new Date(o.observed_at).toLocaleDateString("it-IT")})`)
-    .join(" / ");
-}
-
-// ============================================================================
-// AUTENTICAZIONE PRIVATA
-// ============================================================================
-async function initAuth() {
-  supabase.auth.onAuthStateChange((_event, session) => {
-    handleSession(session);
-  });
-
-  const btnGoogle = document.getElementById("btn-login-google");
-  if (btnGoogle) {
-    btnGoogle.onclick = () =>
-      supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.href } });
-  }
-
-  const btnLogout = document.getElementById("btn-logout");
-  if (btnLogout) {
-    btnLogout.onclick = () => supabase.auth.signOut();
-  }
-}
-
-async function handleSession(session) {
-  const loginScreen = document.getElementById("login-screen");
-  const appShell = document.getElementById("app-shell");
-  const loginErr = document.getElementById("login-error");
-
-  if (!session) {
-    state.user = null;
-    loginScreen.classList.remove("hidden");
-    appShell.classList.add("hidden");
-    return;
-  }
-
-  if (ALLOWED_EMAIL && ALLOWED_EMAIL !== "tua.email@esempio.it" && session.user.email !== ALLOWED_EMAIL) {
-    await supabase.auth.signOut();
-    if (loginErr) loginErr.textContent = "Accesso negato: account non autorizzato.";
-    return;
-  }
-
-  const alreadyLoaded = state.user && state.user.id === session.user.id;
-  state.user = session.user;
-  loginScreen.classList.add("hidden");
-  appShell.classList.remove("hidden");
-
-  if (!alreadyLoaded) {
-    await bootstrapData();
-  }
-}
-
-// ============================================================================
-// CARICAMENTO INIZIALE DATI
-// ============================================================================
-async function bootstrapData() {
-  const { data: years, error } = await supabase
-    .from("school_years")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    showToast("Errore caricamento anni: " + error.message);
-    return;
-  }
-
-  state.years = years || [];
-  if (state.years.length > 0) {
-    const current = state.years.find(y => y.is_current) || state.years[0];
-    state.currentYearId = current.id;
-  }
-  renderYearSelectors();
-  await loadClassesForYear();
-  await loadLessonPlans();
-}
-
-function renderYearSelectors() {
-  const sel = document.getElementById("select-year");
-  const promSel = document.getElementById("promote-target-year");
-  if (sel) sel.innerHTML = "";
-  if (promSel) promSel.innerHTML = "";
-
-  if (state.years.length === 0) {
-    if (sel) sel.innerHTML = `<option value="">Nessun anno (crealo in Classi)</option>`;
-    return;
-  }
-  state.years.forEach(y => {
-    if (sel) sel.innerHTML += `<option value="${y.id}" ${y.id === state.currentYearId ? "selected" : ""}>${y.label}</option>`;
-    if (promSel) promSel.innerHTML += `<option value="${y.id}">${y.label}</option>`;
-  });
-}
-
-async function loadClassesForYear() {
-  const classSel = document.getElementById("select-class");
-  if (classSel) classSel.innerHTML = "";
-
-  if (!state.currentYearId) {
-    state.classes = [];
-    state.currentClassId = null;
-    renderAllViews();
-    return;
-  }
-
-  const { data: classes, error } = await supabase
-    .from("classes")
-    .select("*")
-    .eq("school_year_id", state.currentYearId)
-    .order("name", { ascending: true });
-
-  if (error) {
-    showToast("Errore caricamento classi: " + error.message);
-    return;
-  }
-
-  state.classes = classes || [];
-  if (state.classes.length > 0) {
-    if (!state.classes.some(c => c.id === state.currentClassId)) {
-      state.currentClassId = state.classes[0].id;
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SchoolManager - Registro Laboratorio</title>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --surface: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #cbd5e1;
+      --primary: #1e293b;
+      --primary-hover: #0f172a;
+      --danger: #991b1b;
+      --danger-bg: #fef2f2;
+      --ok: #166534;
+      --ok-bg: #f0fdf4;
+      --warn: #92400e;
+      --warn-bg: #fffbeb;
     }
-    state.classes.forEach(c => {
-      if (classSel) {
-        classSel.innerHTML += `<option value="${c.id}" ${c.id === state.currentClassId ? "selected" : ""}>Classe ${c.name}</option>`;
-      }
-    });
-  } else {
-    state.currentClassId = null;
-    if (classSel) classSel.innerHTML = `<option value="">Nessuna classe</option>`;
-  }
 
-  await loadClassDetails();
-}
+    * { box-sizing: border-box; }
 
-async function loadClassDetails() {
-  if (!state.currentClassId) {
-    state.enrollments = [];
-    state.observations = [];
-    state.evaluations = [];
-    state.plannedAssessments = [];
-    state.absences = [];
-    renderAllViews();
-    return;
-  }
-
-  const { data: enrollments, error } = await supabase
-    .from("enrollments")
-    .select("*, students(*)")
-    .eq("class_id", state.currentClassId)
-    .eq("status", "attivo");
-
-  if (error) {
-    showToast("Errore caricamento studenti: " + error.message);
-    return;
-  }
-
-  state.enrollments = (enrollments || []).sort((a, b) =>
-    a.students.last_name.localeCompare(b.students.last_name)
-  );
-
-  const enrIds = state.enrollments.map(e => e.id);
-
-  if (enrIds.length > 0) {
-    const [obsRes, evalRes, absRes] = await Promise.all([
-      supabase.from("observations").select("*").in("enrollment_id", enrIds).order("observed_at", { ascending: false }),
-      supabase.from("evaluations").select("*").in("enrollment_id", enrIds).order("evaluated_at", { ascending: false }),
-      supabase.from("absences").select("*").in("enrollment_id", enrIds).order("created_at", { ascending: false })
-    ]);
-    state.observations = obsRes.data || [];
-    state.evaluations = evalRes.data || [];
-    state.absences = absRes.data || [];
-  } else {
-    state.observations = [];
-    state.evaluations = [];
-    state.absences = [];
-  }
-
-  const { data: plans } = await supabase
-    .from("planned_assessments")
-    .select("*")
-    .eq("class_id", state.currentClassId)
-    .order("due_date", { ascending: true });
-  state.plannedAssessments = plans || [];
-
-  renderAllViews();
-}
-
-function getFilteredEnrollments() {
-  const grp = document.getElementById("select-group")?.value || "ALL";
-  const query = (document.getElementById("search-student")?.value || "").trim().toLowerCase();
-  return state.enrollments.filter(e => {
-    if (grp !== "ALL" && e.lab_group !== grp) return false;
-    if (query) {
-      const full = `${e.students.last_name} ${e.students.first_name}`.toLowerCase();
-      if (!full.includes(query)) return false;
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
     }
-    return true;
-  });
-}
 
-function renderAllViews() {
-  renderOfficinaList();
-  renderEvaluationsList();
-  renderPlannedList();
-  renderCdcSummary();
-}
+    .hidden { display: none !important; }
 
-// ============================================================================
-// TAB 1: OFFICINA
-// ============================================================================
-function renderOfficinaList() {
-  const container = document.getElementById("officina-student-list");
-  if (!container) return;
-  const list = getFilteredEnrollments();
+    /* Login */
+    #login-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
 
-  if (list.length === 0) {
-    container.innerHTML = `<p style="color:var(--muted);">Nessuno studente trovato. Vai su <strong>Classi &amp; Promozioni</strong> per importare gli elenchi.</p>`;
-    return;
-  }
+    .login-box {
+      width: 100%;
+      max-width: 400px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+    }
 
-  const subj = document.getElementById("officina-subject")?.value || "Tecnologia";
+    .login-box h1 {
+      margin: 0 0 6px 0;
+      font-size: 1.3rem;
+    }
 
-  container.innerHTML = list.map(enr => {
-    const st = enr.students;
-    const stObs = state.observations.filter(o => o.enrollment_id === enr.id && o.subject === subj);
-    const stEvals = state.evaluations.filter(ev => ev.enrollment_id === enr.id && ev.subject === subj);
-    const lastGrade = stEvals.length > 0 ? stEvals[0].mastercom_grade : null;
+    .login-box p {
+      margin: 0 0 18px 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
 
-    return `
-      <div class="student-item" style="flex-direction:column; align-items:stretch;">
-        <div class="row" style="justify-content:space-between;">
-          <div>
-            <span class="student-name">${st.last_name} ${st.first_name}</span>
-            <span class="student-meta">(${enr.lab_group})</span>
-            ${stObs.length > 0 ? `<span class="badge badge-red">${stObs.length} negativi</span>` : `<span class="badge badge-green">0 negativi</span>`}
-            ${lastGrade ? `<span class="badge badge-amber">Ultimo: ${lastGrade}</span>` : ""}
-          </div>
-          <div class="row">
-            <button class="btn btn-outline btn-sm" onclick="window.toggleTags('${enr.id}')">+ Negativo</button>
-            <button class="btn btn-primary btn-sm" onclick="window.openEvalForStudent('${enr.id}')">Griglia</button>
-          </div>
-        </div>
-        <div id="tags-${enr.id}" class="quick-tags hidden">
-          ${QUICK_NEGATIVE_TAGS.map(t => `<button class="tag-btn" onclick="window.addQuickNegative('${enr.id}', '${t}')">${t}</button>`).join("")}
-        </div>
-        ${stObs.length > 0 ? `
-          <div style="font-size:0.78rem; color:var(--danger); margin-top:4px;">
-            Recenti (${subj}): ${stObs.slice(0, 3).map(o => `${o.tag} (${new Date(o.observed_at).toLocaleDateString("it-IT")})`).join(" / ")}
-          </div>` : ""}
+    /* Shell principale */
+    header.topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand {
+      font-weight: 700;
+      font-size: 1.05rem;
+      letter-spacing: 0.2px;
+    }
+
+    nav.tabs {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    nav.tabs button {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 10px 14px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    nav.tabs button.active {
+      color: var(--text);
+      border-bottom-color: var(--primary);
+      font-weight: 600;
+    }
+
+    main.container {
+      max-width: 1200px;
+      margin: 18px auto;
+      padding: 0 20px 40px 20px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .card h2 {
+      margin: 0 0 10px 0;
+      font-size: 1.05rem;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    @media (max-width: 760px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+
+    /* Controlli form */
+    input, select, textarea {
+      font-family: inherit;
+      font-size: 0.88rem;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    input[type="checkbox"] {
+      width: auto;
+      margin: 0;
+    }
+
+    .btn {
+      font-family: inherit;
+      font-size: 0.86rem;
+      font-weight: 500;
+      padding: 7px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #ffffff;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--primary-hover);
+    }
+
+    .btn-outline {
+      background: var(--surface);
+      border-color: var(--border);
+      color: var(--text);
+    }
+
+    .btn-outline:hover:not(:disabled) {
+      background: #f1f5f9;
+    }
+
+    .btn-ok {
+      background: var(--ok-bg);
+      border-color: #86efac;
+      color: var(--ok);
+    }
+
+    .btn-sm {
+      padding: 5px 9px;
+      font-size: 0.8rem;
+    }
+
+    /* Liste e badge */
+    .student-item {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      background: var(--surface);
+    }
+
+    .student-name {
+      font-weight: 600;
+    }
+
+    .student-meta {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .badge-red {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid #fecaca;
+    }
+
+    .badge-green {
+      background: var(--ok-bg);
+      color: var(--ok);
+      border: 1px solid #bbf7d0;
+    }
+
+    .badge-amber {
+      background: var(--warn-bg);
+      color: var(--warn);
+      border: 1px solid #fde68a;
+    }
+
+    .quick-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #f1f5f9;
+    }
+
+    .tag-btn {
+      font-size: 0.78rem;
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid #fecaca;
+      background: var(--danger-bg);
+      color: var(--danger);
+      cursor: pointer;
+    }
+
+    /* Modale griglia valutazione */
+    #eval-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 100;
+    }
+
+    .modal-card {
+      width: 100%;
+      max-width: 720px;
+      max-height: 90vh;
+      overflow-y: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px;
+    }
+
+    .rubric-group {
+      margin-bottom: 12px;
+      padding: 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+    }
+
+    .rubric-group-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 6px;
+    }
+
+    .rubric-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .rubric-opt {
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--surface);
+      color: var(--text);
+      font-size: 0.82rem;
+      cursor: pointer;
+    }
+
+    .rubric-opt.selected {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 18px;
+      right: 18px;
+      background: var(--primary);
+      color: #ffffff;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      display: none;
+      z-index: 200;
+    }
+
+    /* Stampa */
+    #print-area { display: none; }
+
+    @media print {
+      body > *:not(#print-area) { display: none !important; }
+      #print-area { display: block !important; padding: 10px; color: #000; }
+      .print-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 9.5pt; }
+      .print-table th, .print-table td { border: 1px solid #000; padding: 6px; vertical-align: top; }
+      .highlight-cell { background: #f1f5f9 !important; font-weight: 600; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Schermata di accesso -->
+  <div id="login-screen">
+    <div class="login-box">
+      <h1>SchoolManager</h1>
+      <p>Accesso riservato al registro di laboratorio.</p>
+      <button id="btn-login-google" class="btn btn-primary" style="width:100%;" type="button">
+        Accedi con Google
+      </button>
+      <div id="login-error" style="color:var(--danger); font-size:0.85rem; margin-top:10px;"></div>
+    </div>
+  </div>
+
+  <!-- Applicazione principale -->
+  <div id="app-shell" class="hidden">
+    <header class="topbar">
+      <div class="row">
+        <span class="brand">SchoolManager</span>
+        <select id="select-year"></select>
+        <select id="select-class"></select>
+        <select id="select-group">
+          <option value="ALL">Tutti i gruppi</option>
+          <option value="Gruppo A">Gruppo A</option>
+          <option value="Gruppo B">Gruppo B</option>
+        </select>
       </div>
-    `;
-  }).join("");
-}
+      <div class="row">
+        <input id="search-student" type="search" placeholder="Cerca cognome..." />
+        <button id="btn-logout" class="btn btn-outline btn-sm" type="button">Esci</button>
+      </div>
+    </header>
 
-window.toggleTags = (enrId) => {
-  const el = document.getElementById(`tags-${enrId}`);
-  if (el) el.classList.toggle("hidden");
-};
+    <nav class="tabs">
+      <button data-tab="tab-dashboard" class="active" type="button">Dashboard</button>
+      <button data-tab="tab-officina" type="button">Officina</button>
+      <button data-tab="tab-evaluations" type="button">Valutazioni e Calendario</button>
+      <button data-tab="tab-planned" type="button">Prove Minime</button>
+      <button data-tab="tab-cdc" type="button">Consiglio di Classe</button>
+      <button data-tab="tab-lessons" type="button">Schede Lezione</button>
+    </nav>
 
-window.addQuickNegative = async (enrId, tag) => {
-  const subject = document.getElementById("officina-subject")?.value || "Tecnologia";
-  const { error } = await supabase.from("observations").insert({
-    owner_id: state.user.id,
-    enrollment_id: enrId,
-    subject,
-    tag
-  });
-  if (error) {
-    showToast("Errore salvataggio: " + error.message);
-    return;
-  }
-  showToast(`Segnato "${tag}" (${subject})`);
-  await loadClassDetails();
-};
+    <main class="container">
 
-// ============================================================================
-// TAB 2 & MODALE: VALUTAZIONI GRIGLIA DIPARTIMENTO + CALENDARIO + STAMPA
-// ============================================================================
-function resetRubricSelection() {
-  state.selectedRubric = { ...DEFAULT_RUBRIC };
-  document.querySelectorAll(".rubric-options").forEach(groupEl => {
-    const groupName = groupEl.dataset.group;
-    const defaultVal = DEFAULT_RUBRIC[groupName];
-    groupEl.querySelectorAll(".rubric-opt").forEach(optEl => {
-      const isDefault = parseFloat(optEl.dataset.val) === defaultVal;
-      optEl.classList.toggle("selected", isDefault);
-    });
-  });
-}
-
-window.openEvalForStudent = (enrId = null) => {
-  const modal = document.getElementById("eval-modal-backdrop");
-  const sel = document.getElementById("eval-student-select");
-  sel.innerHTML = state.enrollments.map(e =>
-    `<option value="${e.id}" ${e.id === enrId ? "selected" : ""}>${e.students.last_name} ${e.students.first_name}</option>`
-  ).join("");
-
-  document.getElementById("eval-subject-select").value = document.getElementById("officina-subject")?.value || "Tecnologia";
-  document.getElementById("eval-date-input").value = todayISO();
-  document.getElementById("eval-title-input").value = "";
-  document.getElementById("eval-notes-input").value = "";
-  document.getElementById("eval-synced-checkbox").checked = false;
-
-  resetRubricSelection();
-  updateModalNegativesPreview();
-  recalcRubricTotal();
-  modal.style.display = "flex";
-};
-
-function updateModalNegativesPreview() {
-  const enrId = document.getElementById("eval-student-select")?.value;
-  const subj = document.getElementById("eval-subject-select")?.value;
-  const listEl = document.getElementById("eval-negatives-list");
-  if (!listEl) return;
-  const obs = state.observations.filter(o => o.enrollment_id === enrId && o.subject === subj);
-
-  if (obs.length === 0) {
-    listEl.textContent = "Nessun negativo registrato in laboratorio per questa materia.";
-  } else {
-    listEl.innerHTML = obs.map(o =>
-      `- <strong>${o.tag}</strong> (${new Date(o.observed_at).toLocaleDateString("it-IT")})`
-    ).join("<br>");
-  }
-}
-
-function recalcRubricTotal() {
-  const sum = Number((
-    state.selectedRubric.competenze +
-    state.selectedRubric.abilita +
-    state.selectedRubric.conoscenze
-  ).toFixed(1));
-  document.getElementById("eval-sum-display").textContent = sum.toFixed(1);
-  document.getElementById("eval-mastercom-display").textContent = roundMastercom(sum);
-}
-
-async function saveEvaluation(andPrint = false) {
-  const enrId = document.getElementById("eval-student-select").value;
-  if (!enrId) return showToast("Seleziona uno studente.");
-  const subject = document.getElementById("eval-subject-select").value;
-  const title = document.getElementById("eval-title-input").value.trim() || `Prova ${subject}`;
-  const term = document.getElementById("eval-term-select").value;
-  const evaluated_at = document.getElementById("eval-date-input").value || todayISO();
-  const synced = document.getElementById("eval-synced-checkbox").checked;
-  const notes = document.getElementById("eval-notes-input").value.trim();
-
-  const total_score = Number((
-    state.selectedRubric.competenze +
-    state.selectedRubric.abilita +
-    state.selectedRubric.conoscenze
-  ).toFixed(1));
-  const mastercom_grade = Number(roundMastercom(total_score));
-
-  const obs = state.observations.filter(o => o.enrollment_id === enrId && o.subject === subject);
-  const linked_negatives_summary = obs.map(o => `${o.tag} (${new Date(o.observed_at).toLocaleDateString("it-IT")})`).join("; ");
-
-  const payload = {
-    owner_id: state.user.id,
-    enrollment_id: enrId,
-    subject,
-    term,
-    title,
-    competenze_score: state.selectedRubric.competenze,
-    abilita_score: state.selectedRubric.abilita,
-    conoscenze_score: state.selectedRubric.conoscenze,
-    total_score,
-    mastercom_grade,
-    synced_to_mastercom: synced,
-    linked_negatives_summary,
-    notes,
-    evaluated_at
-  };
-
-  const { data, error } = await supabase.from("evaluations").insert(payload).select().single();
-  if (error) {
-    showToast("Errore salvataggio: " + error.message);
-    return;
-  }
-
-  document.getElementById("eval-modal-backdrop").style.display = "none";
-  showToast("Valutazione salvata con Griglia Dipartimento.");
-  await loadClassDetails();
-
-  if (andPrint && data) {
-    window.printEvaluationPDF(data.id);
-  }
-}
-
-function renderEvaluationsList() {
-  const container = document.getElementById("evaluations-list");
-  if (!container) return;
-  const filterSubj = document.getElementById("filter-eval-subject")?.value || "ALL";
-
-  const filteredEvals = state.evaluations.filter(
-    ev => filterSubj === "ALL" || ev.subject === filterSubj
-  );
-
-  const eventsByDate = new Map();
-  const ensureDay = (dateKey) => {
-    if (!eventsByDate.has(dateKey)) {
-      eventsByDate.set(dateKey, { evals: [], obs: [] });
-    }
-    return eventsByDate.get(dateKey);
-  };
-
-  filteredEvals.forEach(ev => {
-    ensureDay(formatDateKey(ev.evaluated_at)).evals.push(ev);
-  });
-
-  state.observations.forEach(ob => {
-    ensureDay(formatDateKey(ob.observed_at)).obs.push(ob);
-  });
-
-  if (state.evalViewMode === "calendar") {
-    const sortedDates = Array.from(eventsByDate.keys()).sort((a, b) => b.localeCompare(a));
-
-    if (sortedDates.length === 0) {
-      container.innerHTML = `<p style="color:var(--muted);">Nessun evento a calendario per questa classe.</p>`;
-      return;
-    }
-
-    container.innerHTML = `
-      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); gap:12px;">
-        ${sortedDates.map(dateKey => {
-          const dayData = eventsByDate.get(dateKey);
-          return `
-            <div class="card" style="margin:0; padding:12px; border:1px solid var(--border); border-radius:8px; background:#fff;">
-              <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:6px; margin-bottom:8px;">
-                <strong style="text-transform:capitalize;">${formatDateLabelIT(dateKey)}</strong>
-                <span class="badge badge-amber">${dayData.evals.length} voti / ${dayData.obs.length} note</span>
-              </div>
-
-              ${dayData.evals.map(ev => {
-                const enr = state.enrollments.find(e => e.id === ev.enrollment_id);
-                const stName = enr ? `${enr.students.last_name} ${enr.students.first_name}`.trim() : "Studente";
-                const allObs = enr ? getStudentObservationsText(enr.id) : "";
-                return `
-                  <div style="padding:6px 0; border-bottom:1px solid #f1f5f9;">
-                    <div style="display:flex; justify-content:space-between; gap:6px;">
-                      <strong>${stName}</strong>
-                      <span class="badge badge-green">${ev.mastercom_grade}</span>
-                    </div>
-                    <div style="font-size:0.78rem; color:var(--muted);">${ev.subject} - ${ev.title}</div>
-                    ${allObs ? `<div style="font-size:0.75rem; color:var(--danger); margin-top:2px;">Note: ${allObs}</div>` : ""}
-                  </div>
-                `;
-              }).join("")}
-
-              ${dayData.obs.map(ob => {
-                const enr = state.enrollments.find(e => e.id === ob.enrollment_id);
-                const stName = enr ? `${enr.students.last_name} ${enr.students.first_name}`.trim() : "Studente";
-                return `
-                  <div style="padding:6px 0; border-bottom:1px solid #f1f5f9;">
-                    <span class="badge badge-red">${ob.tag}</span>
-                    <strong style="margin-left:4px;">${stName}</strong>
-                    <div style="font-size:0.75rem; color:var(--muted);">${ob.subject}</div>
-                  </div>
-                `;
-              }).join("")}
+      <!-- TAB DASHBOARD -->
+      <section id="tab-dashboard" class="tab-panel">
+        <div class="card">
+          <div class="row" style="justify-content:space-between; margin-bottom:12px;">
+            <div>
+              <h2 style="margin:0;">Panoramica Classe</h2>
+              <div id="dash-class-subtitle" class="student-meta">Seleziona una classe per visualizzare i dati.</div>
             </div>
-          `;
-        }).join("")}
-      </div>
-    `;
-    return;
-  }
-
-  if (filteredEvals.length === 0) {
-    container.innerHTML = `<p style="color:var(--muted);">Nessuna valutazione registrata per questa selezione.</p>`;
-    return;
-  }
-
-  container.innerHTML = filteredEvals.map(ev => {
-    const enr = state.enrollments.find(e => e.id === ev.enrollment_id);
-    const stName = enr ? `${enr.students.last_name} ${enr.students.first_name}`.trim() : "Studente";
-    const studentObs = enr ? getStudentObservationsText(enr.id) : ev.linked_negatives_summary;
-
-    return `
-      <div class="student-item">
-        <div>
-          <div class="student-name">${stName} - <span style="color:var(--primary);">${ev.subject}: ${ev.title}</span></div>
-          <div class="student-meta">
-            Data: ${ev.evaluated_at} | Griglia: C=${ev.competenze_score} + A=${ev.abilita_score} + K=${ev.conoscenze_score} = <strong>${ev.total_score}/10</strong>
-            &rarr; Mastercom: <strong>${ev.mastercom_grade}</strong>
+            <div class="row">
+              <label for="dash-shift-group" class="student-meta">Gruppo turni:</label>
+              <select id="dash-shift-group">
+                <option value="ALL">Tutti (ordine alfabetico)</option>
+                <option value="Gruppo 1">Gruppo 1 / A</option>
+                <option value="Gruppo 2">Gruppo 2 / B</option>
+              </select>
+              <button id="btn-reset-shift-overrides" class="btn btn-outline btn-sm" type="button">Ripristina ordine</button>
+            </div>
           </div>
-          ${studentObs ? `<div style="font-size:0.78rem; color:var(--danger); margin-top:2px;">Annotazioni laboratorio: ${studentObs}</div>` : ""}
+
+          <div class="card" style="margin:0 0 14px 0; padding:12px;">
+            <div class="row" style="justify-content:space-between; align-items:center;">
+              <div>
+                <h3 style="margin:0 0 4px 0; font-size:0.95rem;">Orario Settimanale e Slittamento Turni</h3>
+                <div class="student-meta">
+                  Mar 07:55-09:55: 3AM (Tecnologia) | Mar 11:55-13:55: 4AM (Gruppo 2) | Gio 09:55-11:55: 3AM (Gruppo 2) | Sab 08:55-10:45: 4AM (Gruppo 1)
+                </div>
+              </div>
+              <div class="row">
+                <span class="student-meta">Giorni saltati (classe):</span>
+                <button id="btn-skipped-minus" class="btn btn-outline btn-sm" type="button">-</button>
+                <strong id="dash-skipped-count">0</strong>
+                <button id="btn-skipped-plus" class="btn btn-outline btn-sm" type="button">+</button>
+              </div>
+            </div>
+            <div id="dash-schedule-today" class="student-meta" style="margin-top:8px;"></div>
+          </div>
+
+          <div id="dash-kpis" class="grid-2" style="grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:10px; margin-bottom:16px;"></div>
+
+          <div class="grid-2" style="gap:16px; align-items:start;">
+            <div class="card" style="margin:0; padding:12px;">
+              <h3 style="margin:0 0 8px 0; font-size:0.95rem;">Turni Laboratorio (Alfabetico + Eccezioni)</h3>
+              <p class="student-meta" style="margin:0 0 10px 0;">Ordine alfabetico con slittamento automatico per giorni saltati e spostamento manuale mirato.</p>
+              <div id="dash-shifts-list"></div>
+            </div>
+
+            <div class="card" style="margin:0; padding:12px;">
+              <h3 style="margin:0 0 8px 0; font-size:0.95rem;">Annotazioni e Situazioni da Monitorare</h3>
+              <p class="student-meta" style="margin:0 0 10px 0;">Segnalazioni recenti di laboratorio e verifiche registrate nella classe.</p>
+              <div id="dash-alerts-list"></div>
+            </div>
+          </div>
         </div>
-        <div class="row">
-          <button class="btn btn-sm ${ev.synced_to_mastercom ? "btn-ok" : "btn-outline"}" onclick="window.toggleMastercomSync('${ev.id}', ${!ev.synced_to_mastercom})">
-            ${ev.synced_to_mastercom ? "Su Mastercom" : "Segna su Mastercom"}
-          </button>
-          <button class="btn btn-primary btn-sm" onclick="window.printEvaluationPDF('${ev.id}')">Stampa PDF</button>
+      </section>
+
+      <!-- TAB 1: OFFICINA -->
+      <section id="tab-officina" class="tab-panel hidden">
+        <div class="card">
+          <div class="row" style="justify-content:space-between; margin-bottom:12px;">
+            <h2 style="margin:0;">Registro Rapido Officina</h2>
+            <div class="row">
+              <label for="officina-subject" class="student-meta">Materia:</label>
+              <select id="officina-subject">
+                <option value="Tecnologia">Tecnologia</option>
+                <option value="Sistemi">Sistemi</option>
+                <option value="Disegno">Disegno</option>
+              </select>
+            </div>
+          </div>
+          <div id="officina-student-list"></div>
         </div>
-      </div>
-    `;
-  }).join("");
-}
+      </section>
 
-window.toggleMastercomSync = async (evalId, newStatus) => {
-  const { error } = await supabase.from("evaluations").update({ synced_to_mastercom: newStatus }).eq("id", evalId);
-  if (error) {
-    showToast("Errore aggiornamento: " + error.message);
-    return;
-  }
-  await loadClassDetails();
-};
+      <!-- TAB 2: VALUTAZIONI E CALENDARIO -->
+      <section id="tab-evaluations" class="tab-panel hidden">
+        <div class="card">
+          <div class="row" style="justify-content:space-between; margin-bottom:12px;">
+            <h2 style="margin:0;">Valutazioni e Annotazioni</h2>
+            <div class="row">
+              <select id="filter-eval-subject">
+                <option value="ALL">Tutte le materie</option>
+                <option value="Tecnologia">Tecnologia</option>
+                <option value="Sistemi">Sistemi</option>
+                <option value="Disegno">Disegno</option>
+              </select>
+              <button id="btn-open-new-eval" class="btn btn-primary btn-sm" type="button">Nuova Valutazione</button>
+            </div>
+          </div>
 
-window.printEvaluationPDF = (evalId) => {
-  const ev = state.evaluations.find(x => x.id === evalId);
-  if (!ev) return;
-  const enr = state.enrollments.find(e => e.id === ev.enrollment_id);
-  const cls = state.classes.find(c => c.id === state.currentClassId);
-  const yr = state.years.find(y => y.id === state.currentYearId);
+          <div class="row" style="justify-content:space-between; margin-bottom:12px;">
+            <div class="row">
+              <button id="btn-view-calendar" class="btn btn-primary btn-sm" type="button">Vista Calendario</button>
+              <button id="btn-view-grid" class="btn btn-outline btn-sm" type="button">Vista Griglia</button>
+            </div>
+          </div>
 
-  const stName = enr ? `${enr.students.last_name} ${enr.students.first_name}`.trim() : "";
-  const clsName = cls ? cls.name : "";
-  const yrLabel = yr ? yr.label : "";
+          <div id="evaluations-list"></div>
+        </div>
+      </section>
 
-  const descComp = {
-    0.6: "Inesistenti. Molto lacunose e frammentarie.",
-    1.1: "Lacunose, superficiali.",
-    1.7: "Semplici, ma adeguate, non sempre precise, sufficientemente estese.",
-    2.4: "Precise ed esaurienti.",
-    3.0: "Complete ed approfondite."
-  };
-  const descAbil = {
-    1.0: "Molto lacunose e frammentarie. Quasi inesistenti anche con assistenza.",
-    1.4: "Superficiali e imprecise: necessita di continua assistenza.",
-    3.1: "Semplici, ma adeguate: necessita di saltuari aiuti.",
-    4.0: "Precise ed esaurienti: possiede notevole autonomia.",
-    5.0: "Complete ed approfondite: del tutto autonomo."
-  };
-  const descCon = {
-    0.3: "Inesistenti. Molto lacunose e frammentarie.",
-    0.6: "Limitate, superficiali e mnemoniche.",
-    1.2: "Estese, semplici, con qualche carenza, ma adeguate.",
-    1.6: "Precise ed esaurienti.",
-    2.0: "Complete ed approfondite."
-  };
+      <!-- TAB 3: PROVE MINIME -->
+      <section id="tab-planned" class="tab-panel hidden">
+        <div class="card">
+          <h2>Programmazione Prove Minime</h2>
+          <div class="row" style="margin-bottom:12px;">
+            <select id="plan-subject">
+              <option value="Tecnologia">Tecnologia</option>
+              <option value="Sistemi">Sistemi</option>
+              <option value="Disegno">Disegno</option>
+            </select>
+            <select id="plan-term">
+              <option value="1° Quadrimestre">1° Quadrimestre</option>
+              <option value="2° Quadrimestre">2° Quadrimestre</option>
+            </select>
+            <input id="plan-title" type="text" placeholder="Titolo prova..." />
+            <input id="plan-date" type="date" />
+            <button id="btn-add-plan" class="btn btn-primary btn-sm" type="button">Aggiungi</button>
+          </div>
+          <div id="planned-list"></div>
+        </div>
+      </section>
 
-  const compVal = Number(ev.competenze_score);
-  const abilVal = Number(ev.abilita_score);
-  const conVal = Number(ev.conoscenze_score);
+      <!-- TAB 4: CONSIGLIO DI CLASSE -->
+      <section id="tab-cdc" class="tab-panel hidden">
+        <div class="card">
+          <h2>Riepilogo Consiglio di Classe</h2>
+          <div id="cdc-summary-table" style="overflow-x:auto; margin-bottom:16px;"></div>
 
-  const printArea = document.getElementById("print-area");
-  printArea.innerHTML = `
-    <div style="border:2px solid #000; padding:14px;">
-      <h2 style="text-align:center; margin:0 0 6px 0; font-size:13pt;">GRIGLIA PER LA VALUTAZIONE DELLE ATTIVITA DI LABORATORIO</h2>
-      <p style="text-align:center; margin:0 0 12px 0; font-size:10pt;">Dipartimento di Meccanica - Anno Scolastico ${yrLabel}</p>
-      <table class="print-table">
-        <tr>
-          <td><strong>Studente:</strong> ${stName}</td>
-          <td><strong>Classe:</strong> ${clsName}</td>
-          <td><strong>Data:</strong> ${ev.evaluated_at}</td>
-        </tr>
-        <tr>
-          <td><strong>Materia:</strong> ${ev.subject}</td>
-          <td colspan="2"><strong>Prova / Elaborato:</strong> ${ev.title} (${ev.term})</td>
-        </tr>
-      </table>
+          <h3>Importa Assenze da Registro</h3>
+          <div class="row" style="margin-bottom:8px;">
+            <input id="cdc-label" type="text" value="CdC" placeholder="Etichetta (es. 1° CdC)" />
+            <button id="btn-import-absences" class="btn btn-primary btn-sm" type="button">Importa Assenze</button>
+          </div>
+          <textarea id="cdc-import-text" rows="4" style="width:100%;" placeholder="Cognome Nome; ore_assenza; turni_lab_persi"></textarea>
+        </div>
+      </section>
 
-      <table class="print-table">
-        <thead>
-          <tr>
-            <th style="width:32%;">INDICATORI</th>
-            <th style="width:8%;">Max</th>
-            <th style="width:48%;">LIVELLO DI PRESTAZIONE RAGGIUNTO</th>
-            <th style="width:12%;">Punteggio</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>Competenze</strong> inerenti l'interpretazione dei disegni, applicazione norme tecniche e sicurezza, stesura cicli di lavoro e calcolo parametri di taglio.</td>
-            <td style="text-align:center;">3.0</td>
-            <td class="highlight-cell">${descComp[compVal] || ""}</td>
-            <td class="highlight-cell" style="text-align:center; font-size:12pt;">${compVal.toFixed(1)}</td>
-          </tr>
-          <tr>
-            <td><strong>Abilita</strong> nell'uso della strumentazione, macchine utensili tradizionali e CN, pannelli pneumatici, uso CAD/software specifici e autonomia operativa.</td>
-            <td style="text-align:center;">5.0</td>
-            <td class="highlight-cell">${descAbil[abilVal] || ""}</td>
-            <td class="highlight-cell" style="text-align:center; font-size:12pt;">${abilVal.toFixed(1)}</td>
-          </tr>
-          <tr>
-            <td><strong>Conoscenze</strong> delle tecniche di misura, di programmazione, di controllo e dei parametri di taglio.</td>
-            <td style="text-align:center;">2.0</td>
-            <td class="highlight-cell">${descCon[conVal] || ""}</td>
-            <td class="highlight-cell" style="text-align:center; font-size:12pt;">${conVal.toFixed(1)}</td>
-          </tr>
-          <tr>
-            <td colspan="3" style="text-align:right;"><strong>PUNTEGGIO TOTALE GRIGLIA (su 10):</strong></td>
-            <td style="text-align:center; font-size:12pt;"><strong>${Number(ev.total_score).toFixed(1)} / 10</strong></td>
-          </tr>
-          <tr>
-            <td colspan="3" style="text-align:right;"><strong>VOTO PROPOSTO / APPROSSIMATO PER REGISTRO:</strong></td>
-            <td class="highlight-cell" style="text-align:center; font-size:13pt;"><strong>${Number(ev.mastercom_grade).toFixed(2)}</strong></td>
-          </tr>
-        </tbody>
-      </table>
+      <!-- TAB 5: SCHEDE LEZIONE -->
+      <section id="tab-lessons" class="tab-panel hidden">
+        <div class="card">
+          <h2>Schede Preparazione Lezione</h2>
+          <div id="lesson-plans-list"></div>
+        </div>
+      </section>
 
-      <div style="margin-top:12px; font-size:9.5pt; border:1px solid #000; padding:8px;">
-        <strong>Osservazioni registrate in laboratorio:</strong> ${ev.linked_negatives_summary || "Nessun rilievo negativo."}
-        ${ev.notes ? `<br><strong>Note docente:</strong> ${ev.notes}` : ""}
+    </main>
+  </div>
+
+  <!-- Modale Griglia di Valutazione -->
+  <div id="eval-modal-backdrop">
+    <div class="modal-card">
+      <div class="row" style="justify-content:space-between; margin-bottom:12px;">
+        <h2 style="margin:0;">Griglia di Valutazione Laboratorio</h2>
+        <button id="btn-close-eval-modal" class="btn btn-outline btn-sm" type="button">Chiudi</button>
       </div>
 
-      <div style="display:flex; justify-content:space-between; margin-top:26px; font-size:10pt;">
-        <div>Firma del Docente ___________________________</div>
-        <div>Firma Studente (per presa visione) ___________________________</div>
-      </div>
-    </div>
-  `;
-
-  window.print();
-};
-
-// ============================================================================
-// TAB 3: PROVE MINIME
-// ============================================================================
-function renderPlannedList() {
-  const container = document.getElementById("planned-list");
-  if (!container) return;
-  if (state.plannedAssessments.length === 0) {
-    container.innerHTML = `<p style="color:var(--muted);">Nessuna prova minima programmata per questa classe.</p>`;
-    return;
-  }
-  container.innerHTML = state.plannedAssessments.map(p => {
-    const doneCount = state.evaluations.filter(ev =>
-      ev.subject === p.subject && ev.term === p.term && ev.title.toLowerCase() === p.title.toLowerCase()
-    ).length;
-    const totStudents = state.enrollments.length;
-    return `
-      <div class="student-item">
+      <div class="grid-2" style="margin-bottom:12px;">
         <div>
-          <strong>[${p.subject} - ${p.term}]</strong> ${p.title}
-          ${p.due_date ? `<span class="student-meta">(Scadenza: ${p.due_date})</span>` : ""}
+          <label class="student-meta">Studente</label><br>
+          <select id="eval-student-select" style="width:100%;"></select>
         </div>
-        <span class="badge ${doneCount >= totStudents ? "badge-green" : "badge-amber"}">
-          Valutati: ${doneCount} / ${totStudents}
-        </span>
-      </div>
-    `;
-  }).join("");
-}
-
-// ============================================================================
-// TAB 4: CONSIGLIO DI CLASSE & IMPORT ASSENZE
-// ============================================================================
-function renderCdcSummary() {
-  const container = document.getElementById("cdc-summary-table");
-  if (!container) return;
-  if (state.enrollments.length === 0) {
-    container.innerHTML = `<p style="color:var(--muted);">Seleziona una classe con studenti.</p>`;
-    return;
-  }
-
-  const avgFor = (enrId, subj) => {
-    const list = state.evaluations.filter(ev => ev.enrollment_id === enrId && ev.subject === subj);
-    if (list.length === 0) return "-";
-    const avg = list.reduce((acc, x) => acc + Number(x.mastercom_grade), 0) / list.length;
-    return `${avg.toFixed(2)} (${list.length})`;
-  };
-
-  container.innerHTML = `
-    <table style="width:100%; border-collapse:collapse; font-size:0.88rem;">
-      <thead>
-        <tr style="background:#f8fafc; border-bottom:2px solid var(--border); text-align:left;">
-          <th style="padding:8px;">Studente</th>
-          <th style="padding:8px;">Media Tec.</th>
-          <th style="padding:8px;">Media Sis.</th>
-          <th style="padding:8px;">Media Dis.</th>
-          <th style="padding:8px;">Negativi Lab</th>
-          <th style="padding:8px;">Ore Assenza</th>
-          <th style="padding:8px;">Turni Lab Persi</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${state.enrollments.map(enr => {
-          const obsCount = state.observations.filter(o => o.enrollment_id === enr.id).length;
-          const abs = state.absences.find(a => a.enrollment_id === enr.id);
-          return `
-            <tr style="border-bottom:1px solid var(--border);">
-              <td style="padding:8px;"><strong>${enr.students.last_name} ${enr.students.first_name}</strong></td>
-              <td style="padding:8px;">${avgFor(enr.id, "Tecnologia")}</td>
-              <td style="padding:8px;">${avgFor(enr.id, "Sistemi")}</td>
-              <td style="padding:8px;">${avgFor(enr.id, "Disegno")}</td>
-              <td style="padding:8px;">${obsCount > 0 ? `<span class="badge badge-red">${obsCount}</span>` : "0"}</td>
-              <td style="padding:8px;">${abs ? abs.hours_absent + " h" : "-"}</td>
-              <td style="padding:8px;">${abs ? abs.lab_sessions_missed : "-"}</td>
-            </tr>
-          `;
-        }).join("")}
-      </tbody>
-    </table>
-  `;
-}
-
-// ============================================================================
-// TAB 5: SCHEDE PREPARAZIONE LEZIONE
-// ============================================================================
-async function loadLessonPlans() {
-  const { data, error } = await supabase.from("lesson_plans").select("*").order("created_at", { ascending: false });
-  if (error) {
-    showToast("Errore caricamento schede lezione: " + error.message);
-    return;
-  }
-  state.lessonPlans = data || [];
-  const container = document.getElementById("lesson-plans-list");
-  if (!container) return;
-  if (state.lessonPlans.length === 0) {
-    container.innerHTML = `<p style="color:var(--muted);">Nessuna scheda lezione salvata.</p>`;
-    return;
-  }
-  container.innerHTML = state.lessonPlans.map(lp => `
-    <div class="card">
-      <div class="row" style="justify-content:space-between;">
-        <h2>[Classe ${lp.grade}a - ${lp.subject}] ${lp.title}</h2>
-      </div>
-      <div class="grid-2" style="font-size:0.88rem;">
-        <div><strong>1. Grezzi da preparare:</strong><br>${lp.raw_materials || "-"}</div>
-        <div><strong>2. Utensili e strumenti:</strong><br>${lp.tools_setup || "-"}</div>
-        <div><strong>3. Briefing 3 minuti:</strong><br>${lp.briefing_points || "-"}</div>
-        <div style="background:var(--warn-bg); padding:8px; border-radius:8px;">
-          <strong>4. Piano B (2-3 ragazzi senza macchina):</strong><br>${lp.overflow_task || "-"}
+        <div>
+          <label class="student-meta">Materia</label><br>
+          <select id="eval-subject-select" style="width:100%;">
+            <option value="Tecnologia">Tecnologia</option>
+            <option value="Sistemi">Sistemi</option>
+            <option value="Disegno">Disegno</option>
+          </select>
         </div>
+        <div>
+          <label class="student-meta">Periodo</label><br>
+          <select id="eval-term-select" style="width:100%;">
+            <option value="1° Quadrimestre">1° Quadrimestre</option>
+            <option value="2° Quadrimestre">2° Quadrimestre</option>
+          </select>
+        </div>
+        <div>
+          <label class="student-meta">Data valutazione</label><br>
+          <input id="eval-date-input" type="date" style="width:100%;" />
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-bottom:12px;">
+        <div>
+          <label class="student-meta">Titolo prova / elaborato</label><br>
+          <input id="eval-title-input" type="text" style="width:100%;" placeholder="Es. Lavorazione al tornio" />
+        </div>
+        <div>
+          <label class="student-meta">Note docente</label><br>
+          <input id="eval-notes-input" type="text" style="width:100%;" placeholder="Osservazioni aggiuntive..." />
+        </div>
+      </div>
+
+      <div class="rubric-group">
+        <div class="rubric-group-title">Competenze (max 3.0)</div>
+        <div class="rubric-options" data-group="competenze">
+          <button type="button" class="rubric-opt" data-val="0.6">0.6</button>
+          <button type="button" class="rubric-opt" data-val="1.1">1.1</button>
+          <button type="button" class="rubric-opt selected" data-val="1.7">1.7</button>
+          <button type="button" class="rubric-opt" data-val="2.4">2.4</button>
+          <button type="button" class="rubric-opt" data-val="3.0">3.0</button>
+        </div>
+      </div>
+
+      <div class="rubric-group">
+        <div class="rubric-group-title">Abilità (max 5.0)</div>
+        <div class="rubric-options" data-group="abilita">
+          <button type="button" class="rubric-opt" data-val="1.0">1.0</button>
+          <button type="button" class="rubric-opt" data-val="1.4">1.4</button>
+          <button type="button" class="rubric-opt selected" data-val="3.1">3.1</button>
+          <button type="button" class="rubric-opt" data-val="4.0">4.0</button>
+          <button type="button" class="rubric-opt" data-val="5.0">5.0</button>
+        </div>
+      </div>
+
+      <div class="rubric-group">
+        <div class="rubric-group-title">Conoscenze (max 2.0)</div>
+        <div class="rubric-options" data-group="conoscenze">
+          <button type="button" class="rubric-opt" data-val="0.3">0.3</button>
+          <button type="button" class="rubric-opt" data-val="0.6">0.6</button>
+          <button type="button" class="rubric-opt selected" data-val="1.2">1.2</button>
+          <button type="button" class="rubric-opt" data-val="1.6">1.6</button>
+          <button type="button" class="rubric-opt" data-val="2.0">2.0</button>
+        </div>
+      </div>
+
+      <div class="card" style="padding:10px; margin-bottom:12px; background:#f8fafc;">
+        <div class="student-meta" style="margin-bottom:4px;">Annotazioni collegate in laboratorio:</div>
+        <div id="eval-negatives-list" style="font-size:0.85rem;"></div>
+      </div>
+
+      <div class="row" style="justify-content:space-between; margin-bottom:14px;">
+        <div>
+          Totale griglia: <strong id="eval-sum-display">6.0</strong> / 10
+          &rarr; Voto registro: <strong id="eval-mastercom-display">6.00</strong>
+        </div>
+        <label class="row student-meta">
+          <input id="eval-synced-checkbox" type="checkbox" />
+          Segnato su registro elettronico
+        </label>
+      </div>
+
+      <div class="row" style="justify-content:flex-end;">
+        <button id="btn-save-eval" class="btn btn-primary" type="button">Salva Valutazione</button>
+        <button id="btn-print-preview" class="btn btn-outline" type="button">Salva e Stampa</button>
       </div>
     </div>
-  `).join("");
-}
+  </div>
 
-// ============================================================================
-// EVENT LISTENERS PRINCIPALI
-// ============================================================================
-function bindEvents() {
-  document.querySelectorAll("nav.tabs button").forEach(btn => {
-    btn.onclick = () => {
-      document.querySelectorAll("nav.tabs button").forEach(b => b.classList.remove("active"));
-      document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
-      btn.classList.add("active");
-      document.getElementById(btn.dataset.tab).classList.remove("hidden");
-    };
-  });
+  <div id="toast"></div>
+  <div id="print-area"></div>
 
-  document.getElementById("select-year").onchange = async (e) => {
-    state.currentYearId = e.target.value;
-    await loadClassesForYear();
-  };
-  document.getElementById("select-class").onchange = async (e) => {
-    state.currentClassId = e.target.value;
-    await loadClassDetails();
-  };
-  document.getElementById("select-group").onchange = renderOfficinaList;
-  document.getElementById("officina-subject").onchange = renderOfficinaList;
-  document.getElementById("search-student").oninput = renderOfficinaList;
-  document.getElementById("filter-eval-subject").onchange = renderEvaluationsList;
-
-  const btnCal = document.getElementById("btn-view-calendar");
-  const btnGrid = document.getElementById("btn-view-grid");
-  if (btnCal && btnGrid) {
-    btnCal.onclick = () => {
-      state.evalViewMode = "calendar";
-      btnCal.classList.replace("btn-outline", "btn-primary");
-      btnGrid.classList.replace("btn-primary", "btn-outline");
-      renderEvaluationsList();
-    };
-    btnGrid.onclick = () => {
-      state.evalViewMode = "grid";
-      btnGrid.classList.replace("btn-outline", "btn-primary");
-      btnCal.classList.replace("btn-primary", "btn-outline");
-      renderEvaluationsList();
-    };
-  }
-
-  document.getElementById("btn-open-new-eval").onclick = () => window.openEvalForStudent();
-  document.getElementById("btn-close-eval-modal").onclick = () => {
-    document.getElementById("eval-modal-backdrop").style.display = "none";
-  };
-  document.getElementById("eval-student-select").onchange = updateModalNegativesPreview;
-  document.getElementById("eval-subject-select").onchange = updateModalNegativesPreview;
-
-  document.querySelectorAll(".rubric-options").forEach(groupEl => {
-    const groupName = groupEl.dataset.group;
-    groupEl.querySelectorAll(".rubric-opt").forEach(optEl => {
-      optEl.onclick = () => {
-        groupEl.querySelectorAll(".rubric-opt").forEach(o => o.classList.remove("selected"));
-        optEl.classList.add("selected");
-        state.selectedRubric[groupName] = parseFloat(optEl.dataset.val);
-        recalcRubricTotal();
-      };
-    });
-  });
-
-  document.getElementById("btn-save-eval").onclick = () => saveEvaluation(false);
-  document.getElementById("btn-print-preview").onclick = () => saveEvaluation(true);
-
-  document.getElementById("btn-add-plan").onclick = async () => {
-    if (!state.currentClassId) return showToast("Seleziona prima una classe.");
-    const title = document.getElementById("plan-title").value.trim();
-    if (!title) return showToast("Inserisci il titolo della prova.");
-    const { error } = await supabase.from("planned_assessments").insert({
-      owner_id: state.user.id,
-      class_id: state.currentClassId,
-      subject: document.getElementById("plan-subject").value,
-      term: document.getElementById("plan-term").value,
-      title,
-      due_date: document.getElementById("plan-date").value || null
-    });
-    if (error) return showToast("Errore salvataggio prova: " + error.message);
-    document.getElementById("plan-title").value = "";
-    showToast("Prova minima programmata.");
-    await loadClassDetails();
-  };
-
-  document.getElementById("btn-import-absences").onclick = async () => {
-    if (!state.currentClassId) return showToast("Seleziona prima una classe.");
-    const raw = document.getElementById("cdc-import-text").value.trim();
-    const cdcLabel = document.getElementById("cdc-label").value.trim() || "CdC";
-    if (!raw) return;
-
-    const lines = raw.split("\n");
-    let matched = 0;
-
-    for (const line of lines) {
-      const parts = line.split(";").map(p => p.trim());
-      if (parts.length < 2) continue;
-      const namePart = parts[0].toLowerCase();
-      const hours = parseFloat(parts[1]) || 0;
-      const labMissed = parseInt(parts[2] || "0", 10) || 0;
-
-      const found = state.enrollments.find(e => {
-        const f1 = `${e.students.last_name} ${e.students.first_name}`.toLowerCase();
-        const f2 = `${e.students.first_name} ${e.students.last_name}`.toLowerCase();
-        return f1.includes(namePart) || f2.includes(namePart) || namePart.includes(e.students.last_name.toLowerCase());
-      });
-
-      if (found) {
-        await supabase.from("absences").delete().eq("enrollment_id", found.id).eq("cdc_label", cdcLabel);
-        const { error: insErr } = await supabase.from("absences").insert({
-          owner_id: state.user.id,
-          enrollment_id: found.id,
-          cdc_label: cdcLabel,
-          hours_absent: hours,
-          lab_sessions_missed: labMissed
-        });
-        if (!insErr) matched++;
-      }
-    }
-
-    showToast(`Importate assenze per ${matched} studenti (${cdcLabel}).`);
-    await loadClassDetails();
-  };
-}
-
-// ============================================================================
-// AVVIO
-// ============================================================================
-bindEvents();
-initAuth();
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
