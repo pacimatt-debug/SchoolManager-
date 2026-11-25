@@ -84,20 +84,50 @@
     }
 
     .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .sym-btn {
-      flex: 0 0 46px;
-      margin-top: 5px;
-      padding: 10px;
+    .ann-action-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    .plus-btn {
+      flex: 0 0 64px;
+      padding: 12px;
       border: none;
       border-radius: 10px;
+      background: var(--pos);
       color: #fff;
-      font-size: 20px;
-      font-weight: 700;
+      font-size: 22px;
+      font-weight: 800;
       cursor: pointer;
     }
+    .plus-btn.selected {
+      outline: 3px solid #fff;
+    }
+    .minus-badge {
+      flex: 1;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--input-bg);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+    }
+    .minus-badge.active-neg {
+      border-color: var(--neg);
+      color: var(--neg);
+      background: rgba(255, 69, 58, 0.12);
+    }
+    .minus-badge.active-pos {
+      border-color: var(--pos);
+      color: var(--pos);
+      background: rgba(48, 209, 88, 0.12);
+    }
+
     .quick-btn {
       flex: 1;
-      min-width: 105px;
+      min-width: 120px;
       margin-top: 5px;
       padding: 10px 8px;
       border-radius: 8px;
@@ -108,33 +138,11 @@
       font-weight: 700;
       cursor: pointer;
     }
-    .quick-btn.pos-btn {
-      border-color: var(--pos);
-      color: var(--pos);
+    .quick-btn.selected {
+      background: rgba(255, 159, 10, 0.18);
+      border-width: 2px;
     }
     .quick-btn:active { opacity: 0.75; }
-
-    .mode-switch {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
-    }
-    .mode-btn {
-      flex: 1;
-      padding: 9px;
-      border-radius: 9px;
-      border: 1px solid var(--border);
-      background: var(--input-bg);
-      color: var(--muted);
-      font-weight: 700;
-      font-size: 12px;
-      cursor: pointer;
-    }
-    .mode-btn.active {
-      border-color: var(--accent);
-      background: rgba(10, 132, 255, 0.18);
-      color: #fff;
-    }
 
     .primary-btn {
       width: 100%;
@@ -223,7 +231,7 @@
       <button id="tab-prospetto" onclick="showTab('prospetto')">Prospetto</button>
     </div>
 
-    <!-- 1. A-CLASSI (INSERIMENTO SINGOLO: O VOTO O ANNOTAZIONE +-0.25) -->
+    <!-- 1. A-CLASSI (SOLO ANNOTAZIONI: + oppure pulsanti rapidi negativi) -->
     <div id="view-singolo" class="card narrow">
       <h2>A-Classi</h2>
 
@@ -247,38 +255,21 @@
         <option value="DISEGNO">DISEGNO</option>
       </select>
 
-      <label>Tipo inserimento</label>
-      <div class="mode-switch">
-        <button type="button" id="mode-voto" class="mode-btn active" onclick="setModoSingolo('voto')">Voto (es. 7+)</button>
-        <button type="button" id="mode-ann" class="mode-btn" onclick="setModoSingolo('ann')">Annotazione (±0.25)</button>
+      <label>Annotazione</label>
+      <div class="ann-action-row">
+        <button type="button" id="btn-plus" class="plus-btn" title="Annotazione positiva" onclick="selectPositiva()">+</button>
+        <div id="ann-stato" class="minus-badge active-neg">Negativa (usa un pulsante rapido)</div>
       </div>
 
-      <div id="box-voto">
-        <label>Voto</label>
-        <div class="row">
-          <input type="text" id="s-voto" placeholder="Es: 8, 7+, 6-" style="flex:1;">
-          <button type="button" class="sym-btn" style="background:var(--pos);" onclick="appendSym('+')">+</button>
-          <button type="button" class="sym-btn" style="background:var(--neg);" onclick="appendSym('-')">-</button>
-        </div>
-      </div>
-
-      <div id="box-ann" class="hidden">
-        <label>Valore annotazione</label>
-        <select id="s-ann-punti" onchange="toggleDescNegativa()">
-          <option value="0.25">+0.25 (Positiva)</option>
-          <option value="-0.25">-0.25 (Negativa)</option>
-        </select>
-
-        <div id="box-desc-neg" class="hidden">
-          <label>Descrizione annotazione negativa</label>
-          <input type="text" id="s-desc-neg" placeholder="Obbligatoria per -0.25 (es. No DPI)">
-        </div>
-      </div>
-
-      <label id="quick-label">Pulsanti rapidi</label>
+      <label id="quick-label">Pulsanti rapidi negativi</label>
       <div id="quick-btns" class="row"></div>
 
-      <button id="s-btn" class="primary-btn" onclick="saveSingolo()">REGISTRA DATO</button>
+      <div id="box-desc-neg">
+        <label>Descrizione annotazione negativa</label>
+        <input type="text" id="s-desc-neg" placeholder="Obbligatoria per annotazione negativa (es. No DPI)">
+      </div>
+
+      <button id="s-btn" class="primary-btn" onclick="saveSingolo()">REGISTRA ANNOTAZIONE</button>
       <div id="s-status" class="status"></div>
     </div>
 
@@ -357,33 +348,32 @@
 
   <script>
     const SUPABASE_URL = "https://dgdlldmskwkgummpdgnx.supabase.co";
-    // Qui va inserita la chiave PUBBLICA (anon / publishable), NON la chiave segreta (sb_secret_...)
     const SUPABASE_ANON_KEY = "sb_publishable_Yv8ob9MdEaYb9fcsavar8Q_nCLc0HX0";
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    const QUICK_BY_MATERIA = {
+    // Ogni pulsante rapido imposta un'annotazione negativa (-0.25) con la relativa descrizione
+    const QUICK_NEG_BY_MATERIA = {
       TECNOLOGIA: [
-        { label: "⚠️ NO DPI (-0.25)", mode: "ann", punti: "-0.25", desc: "No DPI" },
-        { label: "⚙️ PARAMETRI (-0.25)", mode: "ann", punti: "-0.25", desc: "Errati Parametri" },
-        { label: "🧹 NO PULIZIA (-0.25)", mode: "ann", punti: "-0.25", desc: "No Pulizia" },
-        { label: "➕ ATTREZZATURA (+0.25)", mode: "ann", punti: "0.25", desc: "" }
+        { label: "⚠️ NO DPI", desc: "No DPI" },
+        { label: "⚙️ PARAMETRI", desc: "Errati Parametri" },
+        { label: "🧹 NO PULIZIA", desc: "No Pulizia" }
       ],
       SISTEMI: [
-        { label: "⚡ ERRORE CABLAGGIO (-0.25)", mode: "ann", punti: "-0.25", desc: "Errore Cablaggio" },
-        { label: "➕ ANALISI OK (+0.25)", mode: "ann", punti: "0.25", desc: "" }
+        { label: "⚡ ERRORE CABLAGGIO", desc: "Errore Cablaggio" }
       ],
       DISEGNO: [
-        { label: "✏️ TRATTO/QUOTE (-0.25)", mode: "ann", punti: "-0.25", desc: "Tratto/Quote" },
-        { label: "➕ TAVOLA CURATA (+0.25)", mode: "ann", punti: "0.25", desc: "" }
+        { label: "✏️ TRATTO / QUOTE", desc: "Tratto/Quote" }
       ]
     };
 
-    let modoSingolo = "voto";
+    // 'pos' (+0.25 senza descrizione) oppure 'neg' (-0.25 con descrizione)
+    let versoAnnotazioneSingola = "neg";
+    let quickSelezionatoIndex = null;
     let annoAttivoCache = null;
 
     window.addEventListener("DOMContentLoaded", () => {
       renderQuickButtons();
-      toggleDescNegativa();
+      syncAnnotazioneUI();
       const oggi = new Date();
       const yyyy = oggi.getFullYear();
       const mm = String(oggi.getMonth() + 1).padStart(2, "0");
@@ -398,43 +388,53 @@
       });
     }
 
-    function setModoSingolo(modo) {
-      modoSingolo = modo;
-      document.getElementById("mode-voto").classList.toggle("active", modo === "voto");
-      document.getElementById("mode-ann").classList.toggle("active", modo === "ann");
-      document.getElementById("box-voto").classList.toggle("hidden", modo !== "voto");
-      document.getElementById("box-ann").classList.toggle("hidden", modo !== "ann");
+    function syncAnnotazioneUI() {
+      const btnPlus = document.getElementById("btn-plus");
+      const badge = document.getElementById("ann-stato");
+      const boxDesc = document.getElementById("box-desc-neg");
+
+      btnPlus.classList.toggle("selected", versoAnnotazioneSingola === "pos");
+      boxDesc.classList.toggle("hidden", versoAnnotazioneSingola !== "neg");
+
+      if (versoAnnotazioneSingola === "pos") {
+        badge.className = "minus-badge active-pos";
+        badge.innerText = "Annotazione positiva (+) selezionata";
+      } else {
+        badge.className = "minus-badge active-neg";
+        badge.innerText = "Annotazione negativa (-) selezionata";
+      }
+
+      document.querySelectorAll(".quick-btn").forEach((b, idx) => {
+        b.classList.toggle("selected", versoAnnotazioneSingola === "neg" && quickSelezionatoIndex === idx);
+      });
     }
 
-    function toggleDescNegativa() {
-      const punti = document.getElementById("s-ann-punti").value;
-      document.getElementById("box-desc-neg").classList.toggle("hidden", punti !== "-0.25");
-    }
-
-    function appendSym(s) {
-      const el = document.getElementById("s-voto");
-      el.value += s;
-      el.focus();
+    function selectPositiva() {
+      versoAnnotazioneSingola = "pos";
+      quickSelezionatoIndex = null;
+      document.getElementById("s-desc-neg").value = "";
+      syncAnnotazioneUI();
     }
 
     function renderQuickButtons() {
       const mat = document.getElementById("s-materia").value;
-      const items = QUICK_BY_MATERIA[mat] || [];
-      document.getElementById("quick-label").innerText = `Pulsanti rapidi ${mat}`;
-      document.getElementById("quick-btns").innerHTML = items.map((it, i) => {
-        const extraCls = it.punti === "0.25" ? " pos-btn" : "";
-        return `<button type="button" class="quick-btn${extraCls}" onclick="applyQuick(${i})">${it.label}</button>`;
-      }).join("");
+      const items = QUICK_NEG_BY_MATERIA[mat] || [];
+      quickSelezionatoIndex = null;
+      document.getElementById("quick-label").innerText = `Pulsanti rapidi negativi ${mat}`;
+      document.getElementById("quick-btns").innerHTML = items.map((it, i) => (
+        `<button type="button" class="quick-btn" onclick="applyQuickNeg(${i})">${it.label}</button>`
+      )).join("");
+      syncAnnotazioneUI();
     }
 
-    function applyQuick(index) {
+    function applyQuickNeg(index) {
       const mat = document.getElementById("s-materia").value;
-      const it = (QUICK_BY_MATERIA[mat] || [])[index];
+      const it = (QUICK_NEG_BY_MATERIA[mat] || [])[index];
       if (!it) return;
-      setModoSingolo(it.mode);
-      document.getElementById("s-ann-punti").value = it.punti;
-      document.getElementById("s-desc-neg").value = it.desc || "";
-      toggleDescNegativa();
+      versoAnnotazioneSingola = "neg";
+      quickSelezionatoIndex = index;
+      document.getElementById("s-desc-neg").value = it.desc;
+      syncAnnotazioneUI();
     }
 
     async function getAnnoAttivo() {
@@ -498,51 +498,37 @@
       const st = document.getElementById("s-status");
       const cl = document.getElementById("s-classe").value;
       const iscrizioneId = document.getElementById("s-alunno").value;
-      const materia = document.getElementById("s-materia").value;
 
       if (!cl || !iscrizioneId) {
         alert("Seleziona classe e alunno.");
         return;
       }
 
-      let colonnaPayload;
-      let regPayload = { iscrizione_id: iscrizioneId };
-
       const oggiIso = new Date().toISOString().slice(0, 10);
       const classeAnnoId = await getClasseAnnoId(cl);
 
-      if (modoSingolo === "voto") {
-        const voto = document.getElementById("s-voto").value.trim();
-        if (!voto) { alert("Inserisci un voto."); return; }
-        colonnaPayload = {
-          classe_anno_id: classeAnnoId,
-          data_evento: oggiIso,
-          tipo: "verifica",
-          materia: materia,
-          verso_annotazione: null,
-          descrizione_negativa: null
-        };
-        regPayload.voto = voto;
-        regPayload.annotazione_punti = null;
-      } else {
-        const punti = Number(document.getElementById("s-ann-punti").value);
-        const verso = punti > 0 ? "pos" : "neg";
-        const desc = document.getElementById("s-desc-neg").value.trim();
-        if (verso === "neg" && !desc) {
-          alert("Inserisci la descrizione per l'annotazione negativa.");
-          return;
-        }
-        colonnaPayload = {
-          classe_anno_id: classeAnnoId,
-          data_evento: oggiIso,
-          tipo: "annotazione",
-          materia: null,
-          verso_annotazione: verso,
-          descrizione_negativa: verso === "neg" ? desc : null
-        };
-        regPayload.voto = null;
-        regPayload.annotazione_punti = punti;
+      const isPos = versoAnnotazioneSingola === "pos";
+      const desc = document.getElementById("s-desc-neg").value.trim();
+
+      if (!isPos && !desc) {
+        alert("Inserisci la descrizione per l'annotazione negativa.");
+        return;
       }
+
+      const colonnaPayload = {
+        classe_anno_id: classeAnnoId,
+        data_evento: oggiIso,
+        tipo: "annotazione",
+        materia: null,
+        verso_annotazione: isPos ? "pos" : "neg",
+        descrizione_negativa: isPos ? null : desc
+      };
+
+      const regPayload = {
+        iscrizione_id: iscrizioneId,
+        voto: null,
+        annotazione_punti: isPos ? 0.25 : -0.25
+      };
 
       btn.disabled = true;
       st.innerText = "⏳ Salvataggio...";
@@ -558,9 +544,10 @@
         const { error: regErr } = await sb.from("registrazioni").insert(regPayload);
         if (regErr) throw new Error(regErr.message);
 
-        st.innerText = "✅ Registrato!";
-        document.getElementById("s-voto").value = "";
+        st.innerText = isPos ? "✅ Annotazione (+) registrata!" : "✅ Annotazione (-) registrata!";
         document.getElementById("s-desc-neg").value = "";
+        quickSelezionatoIndex = null;
+        syncAnnotazioneUI();
       } catch (e) {
         st.innerText = "❌ Errore: " + e.message;
       } finally {
@@ -720,7 +707,7 @@
 
     function formatDataShort(isoDate) {
       if (!isoDate) return "";
-      const [y, m, d] = isoDate.split("-");
+      const [, m, d] = isoDate.split("-");
       return `${d}/${m}`;
     }
 
@@ -775,9 +762,10 @@
             if (!r) return "·";
             if (r.voto) return `<strong>${r.voto}</strong>`;
             if (r.annotazione_punti !== null) {
-              const cls = r.annotazione_punti > 0 ? "color:var(--pos);" : "color:var(--neg);";
-              const txt = r.annotazione_punti > 0 ? "+0.25" : "-0.25";
-              return `<span style="${cls}font-weight:700;">${txt}</span>`;
+              const isPos = r.annotazione_punti > 0;
+              const cls = isPos ? "color:var(--pos);" : "color:var(--neg);";
+              const segno = isPos ? "+" : "-";
+              return `<span style="${cls}font-weight:800;font-size:15px;">${segno}</span>`;
             }
             return "·";
           }).join("");
