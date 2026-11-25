@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SchoolManager - Foglio Classe e Griglie</title>
+  <title>SchoolManager - Foglio Elettronico e Annotazioni</title>
   <style>
     :root {
       --bg: #f4f6f9;
@@ -28,7 +28,7 @@
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background: var(--bg);
       color: var(--text);
-      line-height: 1.45;
+      line-height: 1.4;
     }
 
     .hidden { display: none !important; }
@@ -50,38 +50,26 @@
       padding: 24px;
     }
 
-    .login-box h1 {
-      margin: 0 0 6px 0;
-      font-size: 1.3rem;
-    }
-
-    .login-box p {
-      margin: 0 0 18px 0;
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
+    .login-box h1 { margin: 0 0 6px 0; font-size: 1.3rem; }
+    .login-box p { margin: 0 0 18px 0; color: var(--muted); font-size: 0.9rem; }
 
     header.topbar {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 12px 20px;
+      padding: 10px 18px;
       display: flex;
       flex-wrap: wrap;
-      gap: 12px;
+      gap: 10px;
       align-items: center;
       justify-content: space-between;
     }
 
-    .brand {
-      font-weight: 700;
-      font-size: 1.05rem;
-      letter-spacing: 0.2px;
-    }
+    .brand { font-weight: 700; font-size: 1.05rem; }
 
     nav.tabs {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 0 20px;
+      padding: 0 18px;
       display: flex;
       flex-wrap: wrap;
       gap: 4px;
@@ -91,8 +79,8 @@
       background: transparent;
       border: none;
       border-bottom: 2px solid transparent;
-      padding: 10px 16px;
-      font-size: 0.9rem;
+      padding: 9px 14px;
+      font-size: 0.88rem;
       font-weight: 500;
       color: var(--muted);
       cursor: pointer;
@@ -105,28 +93,21 @@
     }
 
     main.container {
-      max-width: 1280px;
-      margin: 18px auto;
-      padding: 0 20px 40px 20px;
+      max-width: 1380px;
+      margin: 14px auto;
+      padding: 0 18px 36px 18px;
     }
 
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 16px;
+      border-radius: 6px;
+      padding: 14px;
+      margin-bottom: 14px;
     }
 
-    .card h2 {
-      margin: 0 0 10px 0;
-      font-size: 1.05rem;
-    }
-
-    .card h3 {
-      margin: 0 0 8px 0;
-      font-size: 0.95rem;
-    }
+    .card h2 { margin: 0 0 8px 0; font-size: 1.02rem; }
+    .card h3 { margin: 0 0 8px 0; font-size: 0.92rem; }
 
     .row {
       display: flex;
@@ -141,31 +122,28 @@
       gap: 12px;
     }
 
-    @media (max-width: 760px) {
+    @media (max-width: 780px) {
       .grid-2 { grid-template-columns: 1fr; }
     }
 
     input, select, textarea {
       font-family: inherit;
-      font-size: 0.88rem;
-      padding: 7px 10px;
+      font-size: 0.85rem;
+      padding: 6px 9px;
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: 5px;
       background: var(--surface);
       color: var(--text);
     }
 
-    input[type="checkbox"] {
-      width: auto;
-      margin: 0;
-    }
+    input[type="checkbox"] { width: auto; margin: 0; }
 
     .btn {
       font-family: inherit;
-      font-size: 0.86rem;
+      font-size: 0.84rem;
       font-weight: 500;
-      padding: 7px 12px;
-      border-radius: 6px;
+      padding: 6px 11px;
+      border-radius: 5px;
       border: 1px solid var(--border);
       cursor: pointer;
       background: var(--surface);
@@ -178,9 +156,7 @@
       color: #ffffff;
     }
 
-    .btn-primary:hover {
-      background: var(--primary-hover);
-    }
+    .btn-primary:hover { background: var(--primary-hover); }
 
     .btn-outline {
       background: var(--surface);
@@ -188,9 +164,7 @@
       color: var(--text);
     }
 
-    .btn-outline:hover {
-      background: #f1f5f9;
-    }
+    .btn-outline:hover { background: #f1f5f9; }
 
     .btn-ok {
       background: var(--ok-bg);
@@ -198,21 +172,15 @@
       color: var(--ok);
     }
 
-    .btn-sm {
-      padding: 5px 9px;
-      font-size: 0.8rem;
-    }
+    .btn-sm { padding: 4px 8px; font-size: 0.78rem; }
 
-    .student-meta {
-      font-size: 0.8rem;
-      color: var(--muted);
-    }
+    .student-meta { font-size: 0.78rem; color: var(--muted); }
 
     .badge {
       display: inline-block;
-      padding: 2px 7px;
+      padding: 2px 6px;
       border-radius: 4px;
-      font-size: 0.75rem;
+      font-size: 0.73rem;
       font-weight: 600;
     }
 
@@ -234,50 +202,76 @@
       border: 1px solid #fde68a;
     }
 
-    .sheet-wrap {
+    /* Foglio elettronico compatto (stile Excel / CSV) */
+    .spreadsheet-wrap {
       overflow-x: auto;
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: 4px;
     }
 
-    table.sheet-table {
+    table.spreadsheet {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.86rem;
+      font-size: 0.84rem;
       background: var(--surface);
     }
 
-    table.sheet-table th,
-    table.sheet-table td {
-      border-bottom: 1px solid #e2e8f0;
-      border-right: 1px solid #e2e8f0;
-      padding: 8px 10px;
-      vertical-align: middle;
+    table.spreadsheet th,
+    table.spreadsheet td {
+      border: 1px solid var(--border);
+      padding: 6px 8px;
       text-align: left;
+      vertical-align: top;
+      white-space: nowrap;
     }
 
-    table.sheet-table th:last-child,
-    table.sheet-table td:last-child {
-      border-right: none;
+    table.spreadsheet thead th {
+      background: #e2e8f0;
+      color: var(--text);
+      font-weight: 700;
+      position: sticky;
+      top: 0;
+      z-index: 2;
     }
 
-    table.sheet-table thead th {
+    table.spreadsheet tbody tr:nth-child(even) {
       background: #f8fafc;
-      font-weight: 600;
     }
 
-    .sheet-note-input {
-      width: 100%;
-      min-width: 160px;
-      font-size: 0.82rem;
-      padding: 5px 7px;
+    table.spreadsheet tbody tr:hover {
+      background: #eef2f6;
     }
 
-    .mini-select {
-      padding: 4px 6px;
+    .cell-note {
+      display: block;
+      font-size: 0.76rem;
+      color: var(--danger);
+      background: var(--danger-bg);
+      border: 1px solid #fecaca;
+      border-radius: 3px;
+      padding: 2px 5px;
+      margin-top: 3px;
+      white-space: normal;
+      max-width: 240px;
+    }
+
+    .cell-grade {
+      display: inline-block;
+      font-weight: 700;
+      color: var(--ok);
+      background: var(--ok-bg);
+      border: 1px solid #bbf7d0;
+      border-radius: 3px;
+      padding: 1px 6px;
       font-size: 0.8rem;
     }
 
+    .cell-empty {
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    /* Modale Griglia Dipartimento */
     #eval-modal-backdrop {
       position: fixed;
       inset: 0;
@@ -291,7 +285,7 @@
 
     .modal-card {
       width: 100%;
-      max-width: 880px;
+      max-width: 720px;
       max-height: 92vh;
       overflow-y: auto;
       background: var(--surface);
@@ -307,17 +301,8 @@
       border-radius: 6px;
     }
 
-    .rubric-group-title {
-      font-weight: 600;
-      font-size: 0.88rem;
-      margin-bottom: 6px;
-    }
-
-    .rubric-options {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
+    .rubric-group-title { font-weight: 600; font-size: 0.88rem; margin-bottom: 6px; }
+    .rubric-options { display: flex; flex-wrap: wrap; gap: 6px; }
 
     .rubric-opt {
       padding: 4px 9px;
@@ -365,7 +350,7 @@
   <div id="login-screen">
     <div class="login-box">
       <h1>SchoolManager</h1>
-      <p>Foglio di classe, storico annuale e griglie di valutazione.</p>
+      <p>Foglio elettronico di classe, annotazioni e griglie di valutazione.</p>
       <button id="btn-login-google" class="btn btn-primary" style="width:100%;" type="button">
         Accedi con Google
       </button>
@@ -384,6 +369,11 @@
           <option value="Gruppo A">Gruppo A</option>
           <option value="Gruppo B">Gruppo B</option>
         </select>
+        <select id="officina-subject">
+          <option value="Tecnologia">Tecnologia</option>
+          <option value="Sistemi">Sistemi</option>
+          <option value="Disegno">Disegno</option>
+        </select>
       </div>
       <div class="row">
         <input id="search-student" type="search" placeholder="Cerca alunno..." />
@@ -392,64 +382,73 @@
     </header>
 
     <nav class="tabs">
-      <button data-tab="tab-sheet" class="active" type="button">Foglio Classe</button>
+      <button data-tab="tab-all-in-one" class="active" type="button">Foglio e Annotazioni (A-Classi)</button>
       <button data-tab="tab-years-promotion" type="button">Anni e Passaggio Classe</button>
-      <button data-tab="tab-cdc-lessons" type="button">Consiglio di Classe e Lezioni</button>
+      <button data-tab="tab-cdc-lessons" type="button">Consiglio di Classe e Prove</button>
     </nav>
 
     <main class="container">
 
-      <!-- PAGINA 1: FOGLIO CLASSE COMPILABILE + VERIFICA COLLETTIVA DA GRIGLIA -->
-      <section id="tab-sheet" class="tab-panel">
+      <!-- TUTTO INSIEME: INSERIMENTO ANNOTAZIONE CON MOTIVAZIONE + FOGLIO ELETTRONICO VOTI/ANNOTAZIONI + GRIGLIA -->
+      <section id="tab-all-in-one" class="tab-panel">
+
+        <!-- Blocco stile A-Classi: inserimento annotazione con motivazione nella tabella -->
         <div class="card">
-          <div class="row" style="justify-content:space-between; margin-bottom:12px;">
+          <div class="row" style="justify-content:space-between; margin-bottom:8px;">
             <div>
-              <h2 style="margin:0;">Foglio di Classe</h2>
-              <div id="sheet-subtitle" class="student-meta">Compilazione diretta per alunno con voto calcolato solo da Griglia di Dipartimento.</div>
+              <h2 style="margin:0;">Inserimento Annotazione con Motivazione (A-Classi)</h2>
+              <div class="student-meta">L'annotazione viene salvata direttamente nella tabella dei voti/annotazioni per data e materia.</div>
+            </div>
+            <button id="btn-open-new-eval" class="btn btn-primary btn-sm" type="button">Apri Griglia Dipartimento</button>
+          </div>
+
+          <div class="row">
+            <select id="aclass-student-select"></select>
+            <input id="aclass-date-input" type="date" />
+            <select id="aclass-reason-preset">
+              <option value="">Motivazione rapida...</option>
+              <option value="No DPI">No DPI</option>
+              <option value="No Pulizia">No Pulizia</option>
+              <option value="Aiuto continuo">Aiuto continuo</option>
+              <option value="Distrazione / Smartphone">Distrazione / Smartphone</option>
+              <option value="Errore quota / Tolleranza">Errore quota / Tolleranza</option>
+              <option value="Parametri errati">Parametri errati</option>
+            </select>
+            <input id="aclass-reason-input" type="text" placeholder="Motivazione dettagliata (es. No DPI, No Pulizia...)" style="min-width:260px; flex:1;" />
+            <button id="btn-add-aclass-note" class="btn btn-primary btn-sm" type="button">Inserisci in Tabella</button>
+          </div>
+        </div>
+
+        <!-- Foglio elettronico unificato (stile CSV 3AM / 4_AM / 5AM) -->
+        <div class="card">
+          <div class="row" style="justify-content:space-between; margin-bottom:10px;">
+            <div>
+              <h2 id="sheet-title" style="margin:0;">Foglio Elettronico Classe</h2>
+              <div id="sheet-subtitle" class="student-meta">Voti calcolati solo da Griglia di Dipartimento e annotazioni con motivazione ordinate per data.</div>
             </div>
             <div class="row">
-              <label for="officina-subject" class="student-meta">Materia:</label>
-              <select id="officina-subject">
+              <input id="new-col-date-input" type="date" title="Aggiungi colonna data" />
+              <button id="btn-add-date-col" class="btn btn-outline btn-sm" type="button">+ Colonna Data</button>
+              <select id="filter-sheet-subject">
+                <option value="ALL">Tutte le materie</option>
                 <option value="Tecnologia">Tecnologia</option>
                 <option value="Sistemi">Sistemi</option>
                 <option value="Disegno">Disegno</option>
               </select>
-              <button id="btn-open-class-eval" class="btn btn-primary btn-sm" type="button">Verifica Tutta la Classe</button>
-              <button id="btn-open-new-eval" class="btn btn-outline btn-sm" type="button">Singola Griglia</button>
             </div>
           </div>
 
-          <div class="sheet-wrap">
-            <table class="sheet-table">
-              <thead>
-                <tr>
-                  <th>Alunno</th>
-                  <th>Gruppo</th>
-                  <th>Annotazioni / Note</th>
-                  <th>Ultima Griglia (C + A + K = Voto)</th>
-                  <th>Azioni</th>
-                </tr>
-              </thead>
-              <tbody id="class-sheet-body"></tbody>
+          <div class="spreadsheet-wrap">
+            <table id="master-spreadsheet" class="spreadsheet">
+              <thead id="master-spreadsheet-head"></thead>
+              <tbody id="master-spreadsheet-body"></tbody>
             </table>
           </div>
         </div>
 
-        <div class="card">
-          <div class="row" style="justify-content:space-between; margin-bottom:10px;">
-            <h2 style="margin:0;">Valutazioni Registrate da Griglia (Calendario Orizzontale)</h2>
-            <select id="filter-eval-subject">
-              <option value="ALL">Tutte le materie</option>
-              <option value="Tecnologia">Tecnologia</option>
-              <option value="Sistemi">Sistemi</option>
-              <option value="Disegno">Disegno</option>
-            </select>
-          </div>
-          <div id="evaluations-list"></div>
-        </div>
       </section>
 
-      <!-- PAGINA 2: MEMORIA DEGLI ANNI E PASSAGGIO ALLA CLASSE SUCCESSIVA -->
+      <!-- MEMORIA DEGLI ANNI E PASSAGGIO ALLA CLASSE SUCCESSIVA -->
       <section id="tab-years-promotion" class="tab-panel hidden">
         <div class="grid-2">
           <div class="card">
@@ -492,24 +491,22 @@
         </div>
 
         <div class="card">
-          <h2>Passaggio alla Classe Successiva (Promozione)</h2>
+          <h2>Passaggio alla Classe Successiva</h2>
           <p class="student-meta" style="margin:0 0 12px 0;">
-            Promuove gli alunni selezionati della classe corrente verso un anno scolastico e una classe di destinazione (es. 3AM -> 4AM), mantenendo intatto lo storico dell'anno precedente.
+            Copia/promuove gli alunni selezionati verso l'anno e la classe di destinazione (es. 3AM -> 4AM) lasciando intatto lo storico dell'anno precedente.
           </p>
           <div class="row" style="margin-bottom:12px;">
-            <label class="student-meta">Anno di destinazione:</label>
+            <label class="student-meta">Anno destinazione:</label>
             <select id="promote-target-year"></select>
-
-            <label class="student-meta">Classe di destinazione:</label>
+            <label class="student-meta">Classe destinazione:</label>
             <select id="promote-target-class"></select>
-
             <button id="btn-promote-students" class="btn btn-primary btn-sm" type="button">Promuovi Selezionati</button>
           </div>
           <div id="promotion-students-list"></div>
         </div>
       </section>
 
-      <!-- PAGINA 3: CONSIGLIO DI CLASSE, PROVE MINIME E SCHEDE LEZIONE -->
+      <!-- CONSIGLIO DI CLASSE, PROVE MINIME E SCHEDE LEZIONE -->
       <section id="tab-cdc-lessons" class="tab-panel hidden">
         <div class="card">
           <h2>Riepilogo Consiglio di Classe (Voti da Griglia)</h2>
@@ -551,111 +548,9 @@
     </main>
   </div>
 
-  <!-- MODALE 1: VERIFICA COLLETTIVA PER TUTTA LA CLASSE (DATI COMUNI UNA SOLA VOLTA) -->
-  <div id="class-eval-modal-backdrop" style="position:fixed; inset:0; background:rgba(15,23,42,0.5); display:none; align-items:center; justify-content:center; padding:16px; z-index:100;">
-    <div class="modal-card">
-      <div class="row" style="justify-content:space-between; margin-bottom:12px;">
-        <h2 style="margin:0;">Inserimento Verifica per Tutta la Classe</h2>
-        <button id="btn-close-class-eval-modal" class="btn btn-outline btn-sm" type="button">Chiudi</button>
-      </div>
-
-      <p class="student-meta" style="margin:0 0 12px 0;">
-        Compila data, materia, periodo, argomento e punteggi comuni di griglia una sola volta. Nella tabella puoi escludere assenti o modificare i singoli valori di C, A e K.
-      </p>
-
-      <div class="grid-2" style="margin-bottom:12px;">
-        <div>
-          <label class="student-meta">Materia</label><br>
-          <select id="batch-subject" style="width:100%;">
-            <option value="Tecnologia">Tecnologia</option>
-            <option value="Sistemi">Sistemi</option>
-            <option value="Disegno">Disegno</option>
-          </select>
-        </div>
-        <div>
-          <label class="student-meta">Periodo</label><br>
-          <select id="batch-term" style="width:100%;">
-            <option value="1° Quadrimestre">1° Quadrimestre</option>
-            <option value="2° Quadrimestre">2° Quadrimestre</option>
-          </select>
-        </div>
-        <div>
-          <label class="student-meta">Data verifica</label><br>
-          <input id="batch-date" type="date" style="width:100%;" />
-        </div>
-        <div>
-          <label class="student-meta">Argomento / Titolo verifica</label><br>
-          <input id="batch-title" type="text" style="width:100%;" placeholder="Es. Verifica tornitura o disegno quotato" />
-        </div>
-      </div>
-
-      <div style="margin-bottom:12px;">
-        <label class="student-meta">Note / Indicazioni comuni</label><br>
-        <input id="batch-notes" type="text" style="width:100%;" placeholder="Eventuali note comuni per la classe..." />
-      </div>
-
-      <div class="rubric-group">
-        <div class="rubric-group-title">Competenze comuni (max 3.0)</div>
-        <div class="rubric-options" data-batch-group="competenze">
-          <button type="button" class="rubric-opt" data-val="0.6">0.6</button>
-          <button type="button" class="rubric-opt" data-val="1.1">1.1</button>
-          <button type="button" class="rubric-opt selected" data-val="1.7">1.7</button>
-          <button type="button" class="rubric-opt" data-val="2.4">2.4</button>
-          <button type="button" class="rubric-opt" data-val="3.0">3.0</button>
-        </div>
-      </div>
-
-      <div class="rubric-group">
-        <div class="rubric-group-title">Abilità comuni (max 5.0)</div>
-        <div class="rubric-options" data-batch-group="abilita">
-          <button type="button" class="rubric-opt" data-val="1.0">1.0</button>
-          <button type="button" class="rubric-opt" data-val="1.4">1.4</button>
-          <button type="button" class="rubric-opt selected" data-val="3.1">3.1</button>
-          <button type="button" class="rubric-opt" data-val="4.0">4.0</button>
-          <button type="button" class="rubric-opt" data-val="5.0">5.0</button>
-        </div>
-      </div>
-
-      <div class="rubric-group">
-        <div class="rubric-group-title">Conoscenze comuni (max 2.0)</div>
-        <div class="rubric-options" data-batch-group="conoscenze">
-          <button type="button" class="rubric-opt" data-val="0.3">0.3</button>
-          <button type="button" class="rubric-opt" data-val="0.6">0.6</button>
-          <button type="button" class="rubric-opt selected" data-val="1.2">1.2</button>
-          <button type="button" class="rubric-opt" data-val="1.6">1.6</button>
-          <button type="button" class="rubric-opt" data-val="2.0">2.0</button>
-        </div>
-      </div>
-
-      <div class="sheet-wrap" style="margin-bottom:14px;">
-        <table class="sheet-table">
-          <thead>
-            <tr>
-              <th>Includi</th>
-              <th>Alunno</th>
-              <th>Comp. (C)</th>
-              <th>Abil. (A)</th>
-              <th>Con. (K)</th>
-              <th>Totale / Voto Griglia</th>
-            </tr>
-          </thead>
-          <tbody id="batch-students-tbody"></tbody>
-        </table>
-      </div>
-
-      <div class="row" style="justify-content:space-between;">
-        <label class="row student-meta">
-          <input id="batch-synced-checkbox" type="checkbox" />
-          Segna tutti come già inseriti su registro
-        </label>
-        <button id="btn-save-class-eval" class="btn btn-primary" type="button">Salva Verifica per Selezionati</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODALE 2: SINGOLA GRIGLIA DI DIPARTIMENTO -->
+  <!-- MODALE GRIGLIA DI VALUTAZIONE DEL DIPARTIMENTO -->
   <div id="eval-modal-backdrop">
-    <div class="modal-card" style="max-width:720px;">
+    <div class="modal-card">
       <div class="row" style="justify-content:space-between; margin-bottom:12px;">
         <h2 style="margin:0;">Griglia di Valutazione del Dipartimento</h2>
         <button id="btn-close-eval-modal" class="btn btn-outline btn-sm" type="button">Chiudi</button>
@@ -663,7 +558,7 @@
 
       <div class="grid-2" style="margin-bottom:12px;">
         <div>
-          <label class="student-meta">Studente</label><br>
+          <label class="student-meta">Alunno</label><br>
           <select id="eval-student-select" style="width:100%;"></select>
         </div>
         <div>
@@ -732,14 +627,14 @@
       </div>
 
       <div class="card" style="padding:10px; margin-bottom:12px; background:#f8fafc;">
-        <div class="student-meta" style="margin-bottom:4px;">Annotazioni collegate per studente e materia:</div>
+        <div class="student-meta" style="margin-bottom:4px;">Annotazioni collegate per alunno e materia:</div>
         <div id="eval-negatives-list" style="font-size:0.85rem;"></div>
       </div>
 
       <div class="row" style="justify-content:space-between; margin-bottom:14px;">
         <div>
-          Punteggio Griglia: <strong id="eval-sum-display">6.0</strong> / 10
-          &rarr; Voto calcolato da Griglia: <strong id="eval-mastercom-display">6.00</strong>
+          Totale Griglia: <strong id="eval-sum-display">6.0</strong> / 10
+          &rarr; Voto da Griglia: <strong id="eval-mastercom-display">6.00</strong>
         </div>
         <label class="row student-meta">
           <input id="eval-synced-checkbox" type="checkbox" />
