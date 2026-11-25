@@ -79,7 +79,7 @@
     }
     .nav button {
       flex: 1;
-      min-width: 110px;
+      min-width: 105px;
       padding: 10px 8px;
       border: none;
       border-radius: 9px;
@@ -102,7 +102,7 @@
       box-shadow: 0 4px 15px rgba(0,0,0,0.45);
       max-width: 100%;
     }
-    .narrow { max-width: 480px; margin: 0 auto; }
+    .narrow { max-width: 520px; margin: 0 auto; }
     h2 { margin: 0 0 8px; font-size: 18px; text-align: center; }
     h3 { margin: 18px 0 6px; font-size: 14px; color: var(--warning); }
 
@@ -133,7 +133,7 @@
       -webkit-appearance: none;
       appearance: none;
     }
-    textarea { min-height: 110px; resize: vertical; font-size: 14px; }
+    textarea { min-height: 95px; resize: vertical; font-size: 14px; }
 
     .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .sign-row { display: flex; gap: 10px; margin-top: 6px; }
@@ -222,6 +222,89 @@
       font-size: 11px;
       font-weight: 700;
       cursor: pointer;
+    }
+
+    /* Flag & Badge Supporto (DSA / 104 / BES) */
+    .flag-group {
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: 10px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+    }
+    .flag-group.disabled-box {
+      opacity: 0.48;
+    }
+    .flag-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .flag-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 10px;
+      border-radius: 8px;
+      background: #1e1e1e;
+      border: 1px solid var(--border);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+    }
+    .flag-item input {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: var(--accent);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .flag-item.disabled-item {
+      cursor: not-allowed;
+    }
+    .flag-item.disabled-item input {
+      cursor: not-allowed;
+    }
+
+    .alunno-badge {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+      vertical-align: middle;
+      text-transform: uppercase;
+    }
+    .badge-dsa {
+      background: rgba(10, 132, 255, 0.18);
+      color: #70b5ff;
+      border: 1px solid rgba(10, 132, 255, 0.5);
+    }
+    .badge-104 {
+      background: rgba(255, 159, 10, 0.18);
+      color: #ffb84d;
+      border: 1px solid rgba(255, 159, 10, 0.55);
+    }
+    .badge-bes {
+      background: rgba(48, 209, 88, 0.16);
+      color: #69e287;
+      border: 1px solid rgba(48, 209, 88, 0.45);
+    }
+
+    .support-banner {
+      margin-top: 8px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(255, 159, 10, 0.1);
+      border: 1px solid rgba(255, 159, 10, 0.4);
+      font-size: 12px;
+      line-height: 1.4;
+      color: #f5f5f7;
     }
 
     .col-edit-btn {
@@ -316,7 +399,7 @@
       left: 0;
       background: var(--card);
       z-index: 2;
-      min-width: 170px;
+      min-width: 175px;
       border-right: 2px solid var(--border);
       box-shadow: 4px 0 8px rgba(0,0,0,0.45);
     }
@@ -353,14 +436,15 @@
       body { padding: 10px; }
       .card { padding: 14px; }
       .meta-grid { grid-template-columns: 1fr; }
+      .flag-grid { grid-template-columns: 1fr; }
       th, td {
         padding: 8px 8px;
         min-width: 72px;
         font-size: 12px;
       }
       th:first-child, td:first-child {
-        min-width: 124px;
-        max-width: 140px;
+        min-width: 132px;
+        max-width: 155px;
         font-size: 12px;
       }
       .grid-open-btn {
@@ -561,6 +645,11 @@
         font-weight: 700;
         font-style: italic;
       }
+      .alunno-badge {
+        border: 1px solid #555 !important;
+        background: #f2f2f2 !important;
+        color: #111 !important;
+      }
     }
   </style>
 </head>
@@ -584,6 +673,7 @@
       <button id="tab-singolo" class="active" onclick="showTab('singolo')">A-Classi</button>
       <button id="tab-verifica" onclick="showTab('verifica')">Caricamento Verifica</button>
       <button id="tab-prospetto" onclick="showTab('prospetto')">Prospetto</button>
+      <button id="tab-alunni" onclick="showTab('alunni')">Scheda Alunni</button>
       <button id="tab-classi" onclick="showTab('classi')">Classi &amp; Anno</button>
     </div>
 
@@ -600,9 +690,10 @@
       </select>
 
       <label>Alunno</label>
-      <select id="s-alunno">
+      <select id="s-alunno" onchange="renderSingoloAlunnoSupporto()">
         <option value="">Scegli classe...</option>
       </select>
+      <div id="s-supporto-box" class="support-banner hidden"></div>
 
       <label>Materia</label>
       <select id="s-materia" onchange="renderQuickButtons()">
@@ -714,7 +805,91 @@
       </div>
     </div>
 
-    <!-- 4. CLASSI & AVANZAMENTO ANNO SCOLASTICO -->
+    <!-- 4. SCHEDA ALUNNI (DSA / 104 / BES & COERENZA) -->
+    <div id="view-alunni" class="card narrow hidden">
+      <h2>Scheda Alunni</h2>
+
+      <label>Classe</label>
+      <select id="a-classe" onchange="loadSchedaAlunni()">
+        <option value="">-- Seleziona classe --</option>
+        <option value="3AM">3AM</option>
+        <option value="4AM">4AM</option>
+        <option value="5AM">5AM</option>
+      </select>
+
+      <label>Alunno</label>
+      <select id="a-alunno" onchange="populateSchedaForm()">
+        <option value="">Scegli classe...</option>
+      </select>
+
+      <div id="a-form-wrap" class="hidden">
+        <label>Profilo di riferimento</label>
+        <div class="flag-grid">
+          <label class="flag-item">
+            <input type="radio" name="a-profilo" value="nessuno" onchange="syncSchedaCoerenza()">
+            <span>Nessuno</span>
+          </label>
+          <label class="flag-item">
+            <input type="radio" name="a-profilo" value="dsa" onchange="syncSchedaCoerenza()">
+            <span>DSA (PDP)</span>
+          </label>
+          <label class="flag-item">
+            <input type="radio" name="a-profilo" value="104" onchange="syncSchedaCoerenza()">
+            <span>Legge 104 (PEI)</span>
+          </label>
+          <label class="flag-item">
+            <input type="radio" name="a-profilo" value="bes" onchange="syncSchedaCoerenza()">
+            <span>BES (PDP)</span>
+          </label>
+        </div>
+
+        <div id="a-dsa-box" class="flag-group">
+          <div class="ind-title" style="margin-bottom:2px;">Disturbi DSA (solo se profilo = DSA)</div>
+          <div class="flag-grid">
+            <label id="lbl-dsa-dislessia" class="flag-item">
+              <input type="checkbox" id="a-dsa-dislessia">
+              <span>Dislessia</span>
+            </label>
+            <label id="lbl-dsa-disortografia" class="flag-item">
+              <input type="checkbox" id="a-dsa-disortografia">
+              <span>Disortografia</span>
+            </label>
+            <label id="lbl-dsa-disgrafia" class="flag-item">
+              <input type="checkbox" id="a-dsa-disgrafia">
+              <span>Disgrafia</span>
+            </label>
+            <label id="lbl-dsa-discalculia" class="flag-item">
+              <input type="checkbox" id="a-dsa-discalculia">
+              <span>Discalculia</span>
+            </label>
+          </div>
+        </div>
+
+        <div id="a-obiettivi-box" class="flag-group">
+          <div class="ind-title" style="margin-bottom:2px;">Obiettivi / Percorso</div>
+          <div id="a-obiettivi-note" class="ind-sub" style="margin-bottom:6px;"></div>
+          <div class="flag-grid">
+            <label id="lbl-obj-minimi" class="flag-item">
+              <input type="checkbox" id="a-obj-minimi" onchange="toggleObiettivo104('minimi')">
+              <span>Obiettivi minimi</span>
+            </label>
+            <label id="lbl-obj-diff" class="flag-item">
+              <input type="checkbox" id="a-obj-diff" onchange="toggleObiettivo104('differenziati')">
+              <span>Obiettivi differenziati</span>
+            </label>
+          </div>
+        </div>
+
+        <label>Note / Misure compensative o dispensative</label>
+        <textarea id="a-note" placeholder="Es: tempi aggiuntivi, formulario, lettura ad alta voce, supporto visivo..."></textarea>
+
+        <button id="a-save-btn" class="primary-btn" onclick="saveSchedaAlunno()">SALVA SCHEDA ALUNNO</button>
+      </div>
+
+      <div id="a-status" class="status"></div>
+    </div>
+
+    <!-- 5. CLASSI & AVANZAMENTO ANNO SCOLASTICO -->
     <div id="view-classi" class="card narrow hidden">
       <h2>Classi &amp; Anno Scolastico</h2>
 
@@ -797,7 +972,7 @@
     </div>
   </div>
 
-  <!-- Nuvola flottante per dettaglio annotazioni periodo -->
+  <!-- Nuvola flottante per dettaglio annotazioni periodo / note supporto -->
   <div id="nuvola-tooltip" class="nuvola-box"></div>
 
   <div id="print-area"></div>
@@ -837,6 +1012,71 @@
     let activeModalIscId = null;
     let activeModalNome = "";
     let appInitialized = false;
+
+    let singoloIscrizioniMap = new Map();
+    let schedaIscrizioniMap = new Map();
+
+    function normalizeAlunnoRecord(raw) {
+      return {
+        id: raw.id,
+        nome_cognome: raw.nome_cognome,
+        profilo_tipo: raw.profilo_tipo || "nessuno",
+        dsa_dislessia: Boolean(raw.dsa_dislessia),
+        dsa_disortografia: Boolean(raw.dsa_disortografia),
+        dsa_disgrafia: Boolean(raw.dsa_disgrafia),
+        dsa_discalculia: Boolean(raw.dsa_discalculia),
+        tipo_obiettivi: raw.tipo_obiettivi || null,
+        note_supporto: raw.note_supporto || ""
+      };
+    }
+
+    function getDsaDisturbiList(alunno) {
+      if (!alunno || alunno.profilo_tipo !== "dsa") return [];
+      const list = [];
+      if (alunno.dsa_dislessia) list.push("Dislessia");
+      if (alunno.dsa_disortografia) list.push("Disortografia");
+      if (alunno.dsa_disgrafia) list.push("Disgrafia");
+      if (alunno.dsa_discalculia) list.push("Discalculia");
+      return list;
+    }
+
+    function getAlunnoBadgeInfo(alunno) {
+      if (!alunno || !alunno.profilo_tipo || alunno.profilo_tipo === "nessuno") {
+        return null;
+      }
+      if (alunno.profilo_tipo === "dsa") {
+        const dist = getDsaDisturbiList(alunno);
+        const shortText = dist.length > 0 ? `DSA (${dist.join(", ")})` : "DSA";
+        const fullText = `DSA • PDP${dist.length > 0 ? " — " + dist.join(", ") : ""}`;
+        return { cssClass: "badge-dsa", shortText, fullText };
+      }
+      if (alunno.profilo_tipo === "104") {
+        const objLabel = alunno.tipo_obiettivi === "differenziati"
+          ? "Ob. differenziati"
+          : (alunno.tipo_obiettivi === "minimi" ? "Ob. minimi" : "PEI");
+        return {
+          cssClass: "badge-104",
+          shortText: `104 • ${objLabel}`,
+          fullText: `Legge 104 • ${objLabel}`
+        };
+      }
+      if (alunno.profilo_tipo === "bes") {
+        return {
+          cssClass: "badge-bes",
+          shortText: "BES",
+          fullText: "BES • PDP"
+        };
+      }
+      return null;
+    }
+
+    function buildAlunnoBadgeHtml(alunno) {
+      const info = getAlunnoBadgeInfo(alunno);
+      if (!info) return "";
+      const noteTitle = alunno.note_supporto ? ` — ${alunno.note_supporto}` : "";
+      const safeTitle = `${info.fullText}${noteTitle}`.replace(/"/g, "&quot;");
+      return `<span class="alunno-badge ${info.cssClass}" title="${safeTitle}">${info.shortText}</span>`;
+    }
 
     function formatVotoMastercom(num) {
       const q = Math.round(num * 4) / 4;
@@ -971,7 +1211,7 @@
 
     function showTab(tab) {
       hideNuvola();
-      ["singolo", "verifica", "prospetto", "classi"].forEach(t => {
+      ["singolo", "verifica", "prospetto", "alunni", "classi"].forEach(t => {
         document.getElementById("view-" + t).classList.toggle("hidden", t !== tab);
         document.getElementById("tab-" + t).classList.toggle("active", t === tab);
       });
@@ -1070,19 +1310,51 @@
     async function getIscrizioniClasse(classeAnnoId) {
       const { data, error } = await sb
         .from("iscrizioni")
-        .select("id, stato, alunni(id, nome_cognome)")
+        .select("id, stato, alunni(id, nome_cognome, profilo_tipo, dsa_dislessia, dsa_disortografia, dsa_disgrafia, dsa_discalculia, tipo_obiettivi, note_supporto)")
         .eq("classe_anno_id", classeAnnoId)
         .eq("stato", "attivo");
       if (error) throw new Error(error.message);
       return (data || [])
         .filter(r => r.alunni)
+        .map(r => ({
+          id: r.id,
+          stato: r.stato,
+          alunni: normalizeAlunnoRecord(r.alunni)
+        }))
         .sort((a, b) => a.alunni.nome_cognome.localeCompare(b.alunni.nome_cognome, "it"));
+    }
+
+    function renderSingoloAlunnoSupporto() {
+      const iscId = document.getElementById("s-alunno").value;
+      const box = document.getElementById("s-supporto-box");
+      if (!iscId || !singoloIscrizioniMap.has(String(iscId))) {
+        box.classList.add("hidden");
+        box.innerHTML = "";
+        return;
+      }
+      const alunno = singoloIscrizioniMap.get(String(iscId)).alunni;
+      const badge = getAlunnoBadgeInfo(alunno);
+      if (!badge && !alunno.note_supporto) {
+        box.classList.add("hidden");
+        box.innerHTML = "";
+        return;
+      }
+      const badgeHtml = badge ? `<span class="alunno-badge ${badge.cssClass}" style="margin-left:0;">${badge.fullText}</span>` : "";
+      const noteHtml = alunno.note_supporto
+        ? `<div style="margin-top:6px;color:var(--muted);">Note: <strong style="color:var(--text);">${alunno.note_supporto}</strong></div>`
+        : "";
+      box.innerHTML = `${badgeHtml}${noteHtml}`;
+      box.classList.remove("hidden");
     }
 
     async function loadAlunni(selectClasseId, selectAlunnoId, statusId) {
       const cl = document.getElementById(selectClasseId).value;
       const sel = document.getElementById(selectAlunnoId);
       const st = document.getElementById(statusId);
+      if (selectAlunnoId === "s-alunno") {
+        singoloIscrizioniMap.clear();
+        renderSingoloAlunnoSupporto();
+      }
       if (!cl) {
         sel.innerHTML = '<option value="">Scegli classe...</option>';
         return;
@@ -1091,11 +1363,217 @@
       try {
         const classeAnnoId = await getClasseAnnoId(cl);
         const iscr = await getIscrizioniClasse(classeAnnoId);
+        if (selectAlunnoId === "s-alunno") {
+          for (const item of iscr) {
+            singoloIscrizioniMap.set(String(item.id), item);
+          }
+        }
         sel.innerHTML = '<option value="">-- Seleziona alunno --</option>' +
-          iscr.map(i => `<option value="${i.id}">${i.alunni.nome_cognome}</option>`).join("");
+          iscr.map(i => {
+            const b = getAlunnoBadgeInfo(i.alunni);
+            const tag = b ? ` [${b.shortText}]` : "";
+            return `<option value="${i.id}">${i.alunni.nome_cognome}${tag}</option>`;
+          }).join("");
+        st.innerText = "";
+        if (selectAlunnoId === "s-alunno") {
+          renderSingoloAlunnoSupporto();
+        }
+      } catch (e) {
+        st.innerText = "❌ " + e.message;
+      }
+    }
+
+    function getSelectedProfiloScheda() {
+      const checked = document.querySelector('input[name="a-profilo"]:checked');
+      return checked ? checked.value : "nessuno";
+    }
+
+    function toggleObiettivo104(scelta) {
+      const profilo = getSelectedProfiloScheda();
+      if (profilo !== "104") {
+        document.getElementById("a-obj-minimi").checked = false;
+        document.getElementById("a-obj-diff").checked = false;
+        return;
+      }
+      const minEl = document.getElementById("a-obj-minimi");
+      const diffEl = document.getElementById("a-obj-diff");
+      if (scelta === "minimi" && minEl.checked) {
+        diffEl.checked = false;
+      } else if (scelta === "differenziati" && diffEl.checked) {
+        minEl.checked = false;
+      }
+    }
+
+    function syncSchedaCoerenza() {
+      const profilo = getSelectedProfiloScheda();
+      const isDsa = profilo === "dsa";
+      const is104 = profilo === "104";
+
+      const dsaBox = document.getElementById("a-dsa-box");
+      dsaBox.classList.toggle("disabled-box", !isDsa);
+      ["a-dsa-dislessia", "a-dsa-disortografia", "a-dsa-disgrafia", "a-dsa-discalculia"].forEach(id => {
+        const cb = document.getElementById(id);
+        const lbl = document.getElementById("lbl-" + id.replace("a-", ""));
+        if (!isDsa) cb.checked = false;
+        cb.disabled = !isDsa;
+        if (lbl) lbl.classList.toggle("disabled-item", !isDsa);
+      });
+
+      const objBox = document.getElementById("a-obiettivi-box");
+      const objNote = document.getElementById("a-obiettivi-note");
+      const minEl = document.getElementById("a-obj-minimi");
+      const diffEl = document.getElementById("a-obj-diff");
+      const lblMin = document.getElementById("lbl-obj-minimi");
+      const lblDiff = document.getElementById("lbl-obj-diff");
+
+      if (!is104) {
+        minEl.checked = false;
+        diffEl.checked = false;
+      }
+      minEl.disabled = !is104;
+      diffEl.disabled = !is104;
+      objBox.classList.toggle("disabled-box", !is104);
+      lblMin.classList.toggle("disabled-item", !is104);
+      lblDiff.classList.toggle("disabled-item", !is104);
+
+      if (is104) {
+        objNote.innerText = "Seleziona un solo flag tra obiettivi minimi e obiettivi differenziati (PEI).";
+      } else if (isDsa || profilo === "bes") {
+        objNote.innerText = "Percorso su PDP: i flag obiettivi minimi/differenziati del PEI 104 non si applicano.";
+      } else {
+        objNote.innerText = "Nessun profilo di supporto attivo.";
+      }
+    }
+
+    async function loadSchedaAlunni() {
+      const cl = document.getElementById("a-classe").value;
+      const sel = document.getElementById("a-alunno");
+      const wrap = document.getElementById("a-form-wrap");
+      const st = document.getElementById("a-status");
+
+      schedaIscrizioniMap.clear();
+      wrap.classList.add("hidden");
+      st.innerText = "";
+
+      if (!cl) {
+        sel.innerHTML = '<option value="">Scegli classe...</option>';
+        return;
+      }
+
+      st.innerText = "⏳ Caricamento alunni...";
+      try {
+        const classeAnnoId = await getClasseAnnoId(cl);
+        const iscr = await getIscrizioniClasse(classeAnnoId);
+        for (const item of iscr) {
+          schedaIscrizioniMap.set(String(item.alunni.id), item.alunni);
+        }
+        sel.innerHTML = '<option value="">-- Seleziona alunno --</option>' +
+          iscr.map(i => {
+            const b = getAlunnoBadgeInfo(i.alunni);
+            const tag = b ? ` [${b.shortText}]` : "";
+            return `<option value="${i.alunni.id}">${i.alunni.nome_cognome}${tag}</option>`;
+          }).join("");
         st.innerText = "";
       } catch (e) {
         st.innerText = "❌ " + e.message;
+      }
+    }
+
+    function populateSchedaForm() {
+      const alunnoId = document.getElementById("a-alunno").value;
+      const wrap = document.getElementById("a-form-wrap");
+      document.getElementById("a-status").innerText = "";
+
+      if (!alunnoId || !schedaIscrizioniMap.has(String(alunnoId))) {
+        wrap.classList.add("hidden");
+        return;
+      }
+
+      const al = schedaIscrizioniMap.get(String(alunnoId));
+      const targetProfilo = al.profilo_tipo || "nessuno";
+      const radio = document.querySelector(`input[name="a-profilo"][value="${targetProfilo}"]`);
+      if (radio) radio.checked = true;
+
+      document.getElementById("a-dsa-dislessia").checked = Boolean(al.dsa_dislessia);
+      document.getElementById("a-dsa-disortografia").checked = Boolean(al.dsa_disortografia);
+      document.getElementById("a-dsa-disgrafia").checked = Boolean(al.dsa_disgrafia);
+      document.getElementById("a-dsa-discalculia").checked = Boolean(al.dsa_discalculia);
+
+      document.getElementById("a-obj-minimi").checked = al.tipo_obiettivi === "minimi";
+      document.getElementById("a-obj-diff").checked = al.tipo_obiettivi === "differenziati";
+      document.getElementById("a-note").value = al.note_supporto || "";
+
+      syncSchedaCoerenza();
+      wrap.classList.remove("hidden");
+    }
+
+    async function saveSchedaAlunno() {
+      const alunnoId = document.getElementById("a-alunno").value;
+      const st = document.getElementById("a-status");
+      const btn = document.getElementById("a-save-btn");
+
+      if (!alunnoId) {
+        alert("Seleziona un alunno.");
+        return;
+      }
+
+      const profilo = getSelectedProfiloScheda();
+      const isDsa = profilo === "dsa";
+      const is104 = profilo === "104";
+
+      const dsaDislessia = isDsa && document.getElementById("a-dsa-dislessia").checked;
+      const dsaDisortografia = isDsa && document.getElementById("a-dsa-disortografia").checked;
+      const dsaDisgrafia = isDsa && document.getElementById("a-dsa-disgrafia").checked;
+      const dsaDiscalculia = isDsa && document.getElementById("a-dsa-discalculia").checked;
+
+      let tipoObiettivi = null;
+      if (is104) {
+        if (document.getElementById("a-obj-diff").checked) tipoObiettivi = "differenziati";
+        else if (document.getElementById("a-obj-minimi").checked) tipoObiettivi = "minimi";
+      }
+
+      const noteSupporto = document.getElementById("a-note").value.trim() || null;
+
+      btn.disabled = true;
+      st.innerText = "⏳ Salvataggio scheda...";
+      try {
+        const payload = {
+          profilo_tipo: profilo,
+          dsa_dislessia: dsaDislessia,
+          dsa_disortografia: dsaDisortografia,
+          dsa_disgrafia: dsaDisgrafia,
+          dsa_discalculia: dsaDiscalculia,
+          tipo_obiettivi: tipoObiettivi,
+          note_supporto: noteSupporto
+        };
+
+        const { error } = await sb
+          .from("alunni")
+          .update(payload)
+          .eq("id", alunnoId);
+        if (error) throw new Error(error.message);
+
+        if (schedaIscrizioniMap.has(String(alunnoId))) {
+          schedaIscrizioniMap.set(String(alunnoId), {
+            ...schedaIscrizioniMap.get(String(alunnoId)),
+            ...payload,
+            note_supporto: noteSupporto || ""
+          });
+        }
+
+        const sel = document.getElementById("a-alunno");
+        const opt = sel.querySelector(`option[value="${alunnoId}"]`);
+        const updatedAl = schedaIscrizioniMap.get(String(alunnoId));
+        if (opt && updatedAl) {
+          const b = getAlunnoBadgeInfo(updatedAl);
+          opt.textContent = `${updatedAl.nome_cognome}${b ? ` [${b.shortText}]` : ""}`;
+        }
+
+        st.innerText = "✅ Scheda alunno salvata!";
+      } catch (e) {
+        st.innerText = "❌ Errore: " + e.message;
+      } finally {
+        btn.disabled = false;
       }
     }
 
@@ -1316,6 +1794,27 @@
       box.style.left = `${left}px`;
     }
 
+    function showNuvolaSupporto(el, alunno) {
+      const badge = getAlunnoBadgeInfo(alunno);
+      if (!badge && !alunno.note_supporto) return;
+      const box = document.getElementById("nuvola-tooltip");
+      let html = `<div style="font-weight:700;margin-bottom:4px;color:var(--warning);">${alunno.nome_cognome}</div>`;
+      if (badge) {
+        html += `<div class="nuvola-item"><strong>${badge.fullText}</strong></div>`;
+      }
+      if (alunno.note_supporto) {
+        html += `<div class="nuvola-item">${alunno.note_supporto}</div>`;
+      }
+      box.innerHTML = html;
+      box.classList.add("visible");
+
+      const rect = el.getBoundingClientRect();
+      const top = Math.min(window.innerHeight - box.offsetHeight - 10, rect.bottom + 6);
+      const left = Math.min(window.innerWidth - box.offsetWidth - 10, Math.max(10, rect.left));
+      box.style.top = `${Math.max(10, top)}px`;
+      box.style.left = `${left}px`;
+    }
+
     function hideNuvola() {
       const box = document.getElementById("nuvola-tooltip");
       if (box) box.classList.remove("visible");
@@ -1510,9 +2009,14 @@
 
         document.getElementById("v-tbody").innerHTML = iscr.map(i => {
           const safeNome = i.alunni.nome_cognome.replace(/'/g, "\\'");
+          const badgeHtml = buildAlunnoBadgeHtml(i.alunni);
+          const hasSupport = Boolean(getAlunnoBadgeInfo(i.alunni) || i.alunni.note_supporto);
+          const supportEvents = hasSupport
+            ? `style="cursor:help;" onmouseenter='showNuvolaSupporto(this, ${JSON.stringify(i.alunni).replace(/'/g, "&#39;")})' onmouseleave="hideNuvola()" onclick='showNuvolaSupporto(this, ${JSON.stringify(i.alunni).replace(/'/g, "&#39;")})'`
+            : "";
           return `
             <tr data-isc-id="${i.id}">
-              <td><strong>${i.alunni.nome_cognome}</strong></td>
+              <td ${supportEvents}><strong>${i.alunni.nome_cognome}</strong>${badgeHtml}</td>
               <td><button type="button" class="grid-open-btn" onclick="openGrigliaModal('${i.id}', '${safeNome}')">📋 Griglia</button></td>
               <td class="v-ann-pts nuvola-cell" onmouseenter="showNuvola(this, '${i.id}')" onmouseleave="hideNuvola()" onclick="showNuvola(this, '${i.id}')">0</td>
               <td class="v-proposta"><span style="color:var(--muted);">—</span></td>
@@ -1765,6 +2269,7 @@
         "</tr></thead>";
 
       const bodyRows = iscr.map(i => {
+        const badgeHtml = buildAlunnoBadgeHtml(i.alunni);
         const cells = colList.map(c => {
           const r = mapReg.get(`${i.id}__${c.id}`);
           if (!r) return "<td></td>";
@@ -1786,7 +2291,7 @@
           }
           return "<td></td>";
         }).join("");
-        return `<tr><td><strong>${i.alunni.nome_cognome}</strong></td>${cells}</tr>`;
+        return `<tr><td><strong>${i.alunni.nome_cognome}</strong>${badgeHtml}</td>${cells}</tr>`;
       }).join("");
 
       const footerCells = colList.map(c => `<td>${c.materia || ""}</td>`).join("");
@@ -1830,11 +2335,12 @@
           pageNum++;
           const rowsSlice = rowChunks[rIdx];
 
-          const thHtml = "<tr><th style='width:22%;'>Alunno</th>" +
+          const thHtml = "<tr><th style='width:24%;'>Alunno</th>" +
             colsSlice.map(c => `<th>${formatDataShort(c.data_evento)}</th>`).join("") +
             "</tr>";
 
           const trHtml = rowsSlice.map(i => {
+            const badgeHtml = buildAlunnoBadgeHtml(i.alunni);
             const tds = colsSlice.map(c => {
               const r = mapReg.get(`${i.id}__${c.id}`);
               if (!r) return "<td></td>";
@@ -1846,7 +2352,7 @@
               }
               return "<td></td>";
             }).join("");
-            return `<tr><td><strong>${i.alunni.nome_cognome}</strong></td>${tds}</tr>`;
+            return `<tr><td><strong>${i.alunni.nome_cognome}</strong>${badgeHtml}</td>${tds}</tr>`;
           }).join("");
 
           const footerHtml = "<tr class='print-footer'><td>Dettaglio</td>" +
