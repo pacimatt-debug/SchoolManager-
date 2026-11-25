@@ -234,7 +234,6 @@
       border: 1px solid #fde68a;
     }
 
-    /* Tabella stile foglio di calcolo */
     .sheet-wrap {
       overflow-x: auto;
       border: 1px solid var(--border);
@@ -253,7 +252,7 @@
       border-bottom: 1px solid #e2e8f0;
       border-right: 1px solid #e2e8f0;
       padding: 8px 10px;
-      vertical-align: top;
+      vertical-align: middle;
       text-align: left;
     }
 
@@ -265,18 +264,20 @@
     table.sheet-table thead th {
       background: #f8fafc;
       font-weight: 600;
-      position: sticky;
-      top: 0;
     }
 
     .sheet-note-input {
       width: 100%;
-      min-width: 170px;
+      min-width: 160px;
       font-size: 0.82rem;
       padding: 5px 7px;
     }
 
-    /* Modale griglia valutazione */
+    .mini-select {
+      padding: 4px 6px;
+      font-size: 0.8rem;
+    }
+
     #eval-modal-backdrop {
       position: fixed;
       inset: 0;
@@ -290,8 +291,8 @@
 
     .modal-card {
       width: 100%;
-      max-width: 720px;
-      max-height: 90vh;
+      max-width: 880px;
+      max-height: 92vh;
       overflow-y: auto;
       background: var(--surface);
       border: 1px solid var(--border);
@@ -300,7 +301,7 @@
     }
 
     .rubric-group {
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       padding: 10px;
       border: 1px solid #e2e8f0;
       border-radius: 6px;
@@ -308,7 +309,7 @@
 
     .rubric-group-title {
       font-weight: 600;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       margin-bottom: 6px;
     }
 
@@ -319,12 +320,12 @@
     }
 
     .rubric-opt {
-      padding: 5px 10px;
+      padding: 4px 9px;
       border: 1px solid var(--border);
       border-radius: 5px;
       background: var(--surface);
       color: var(--text);
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       cursor: pointer;
     }
 
@@ -398,7 +399,7 @@
 
     <main class="container">
 
-      <!-- PAGINA 1: FOGLIO CLASSE COMPILABILE + GRIGLIA DIPARTIMENTO -->
+      <!-- PAGINA 1: FOGLIO CLASSE COMPILABILE + VERIFICA COLLETTIVA DA GRIGLIA -->
       <section id="tab-sheet" class="tab-panel">
         <div class="card">
           <div class="row" style="justify-content:space-between; margin-bottom:12px;">
@@ -413,7 +414,8 @@
                 <option value="Sistemi">Sistemi</option>
                 <option value="Disegno">Disegno</option>
               </select>
-              <button id="btn-open-new-eval" class="btn btn-primary btn-sm" type="button">Compila Griglia</button>
+              <button id="btn-open-class-eval" class="btn btn-primary btn-sm" type="button">Verifica Tutta la Classe</button>
+              <button id="btn-open-new-eval" class="btn btn-outline btn-sm" type="button">Singola Griglia</button>
             </div>
           </div>
 
@@ -424,7 +426,7 @@
                   <th>Alunno</th>
                   <th>Gruppo</th>
                   <th>Annotazioni / Note</th>
-                  <th>Griglia Dipartimento (C + A + K = Voto)</th>
+                  <th>Ultima Griglia (C + A + K = Voto)</th>
                   <th>Azioni</th>
                 </tr>
               </thead>
@@ -435,7 +437,7 @@
 
         <div class="card">
           <div class="row" style="justify-content:space-between; margin-bottom:10px;">
-            <h2 style="margin:0;">Valutazioni Registrata da Griglia (Calendario Orizzontale)</h2>
+            <h2 style="margin:0;">Valutazioni Registrate da Griglia (Calendario Orizzontale)</h2>
             <select id="filter-eval-subject">
               <option value="ALL">Tutte le materie</option>
               <option value="Tecnologia">Tecnologia</option>
@@ -549,9 +551,111 @@
     </main>
   </div>
 
-  <!-- Modale Griglia di Dipartimento -->
-  <div id="eval-modal-backdrop">
+  <!-- MODALE 1: VERIFICA COLLETTIVA PER TUTTA LA CLASSE (DATI COMUNI UNA SOLA VOLTA) -->
+  <div id="class-eval-modal-backdrop" style="position:fixed; inset:0; background:rgba(15,23,42,0.5); display:none; align-items:center; justify-content:center; padding:16px; z-index:100;">
     <div class="modal-card">
+      <div class="row" style="justify-content:space-between; margin-bottom:12px;">
+        <h2 style="margin:0;">Inserimento Verifica per Tutta la Classe</h2>
+        <button id="btn-close-class-eval-modal" class="btn btn-outline btn-sm" type="button">Chiudi</button>
+      </div>
+
+      <p class="student-meta" style="margin:0 0 12px 0;">
+        Compila data, materia, periodo, argomento e punteggi comuni di griglia una sola volta. Nella tabella puoi escludere assenti o modificare i singoli valori di C, A e K.
+      </p>
+
+      <div class="grid-2" style="margin-bottom:12px;">
+        <div>
+          <label class="student-meta">Materia</label><br>
+          <select id="batch-subject" style="width:100%;">
+            <option value="Tecnologia">Tecnologia</option>
+            <option value="Sistemi">Sistemi</option>
+            <option value="Disegno">Disegno</option>
+          </select>
+        </div>
+        <div>
+          <label class="student-meta">Periodo</label><br>
+          <select id="batch-term" style="width:100%;">
+            <option value="1° Quadrimestre">1° Quadrimestre</option>
+            <option value="2° Quadrimestre">2° Quadrimestre</option>
+          </select>
+        </div>
+        <div>
+          <label class="student-meta">Data verifica</label><br>
+          <input id="batch-date" type="date" style="width:100%;" />
+        </div>
+        <div>
+          <label class="student-meta">Argomento / Titolo verifica</label><br>
+          <input id="batch-title" type="text" style="width:100%;" placeholder="Es. Verifica tornitura o disegno quotato" />
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <label class="student-meta">Note / Indicazioni comuni</label><br>
+        <input id="batch-notes" type="text" style="width:100%;" placeholder="Eventuali note comuni per la classe..." />
+      </div>
+
+      <div class="rubric-group">
+        <div class="rubric-group-title">Competenze comuni (max 3.0)</div>
+        <div class="rubric-options" data-batch-group="competenze">
+          <button type="button" class="rubric-opt" data-val="0.6">0.6</button>
+          <button type="button" class="rubric-opt" data-val="1.1">1.1</button>
+          <button type="button" class="rubric-opt selected" data-val="1.7">1.7</button>
+          <button type="button" class="rubric-opt" data-val="2.4">2.4</button>
+          <button type="button" class="rubric-opt" data-val="3.0">3.0</button>
+        </div>
+      </div>
+
+      <div class="rubric-group">
+        <div class="rubric-group-title">Abilità comuni (max 5.0)</div>
+        <div class="rubric-options" data-batch-group="abilita">
+          <button type="button" class="rubric-opt" data-val="1.0">1.0</button>
+          <button type="button" class="rubric-opt" data-val="1.4">1.4</button>
+          <button type="button" class="rubric-opt selected" data-val="3.1">3.1</button>
+          <button type="button" class="rubric-opt" data-val="4.0">4.0</button>
+          <button type="button" class="rubric-opt" data-val="5.0">5.0</button>
+        </div>
+      </div>
+
+      <div class="rubric-group">
+        <div class="rubric-group-title">Conoscenze comuni (max 2.0)</div>
+        <div class="rubric-options" data-batch-group="conoscenze">
+          <button type="button" class="rubric-opt" data-val="0.3">0.3</button>
+          <button type="button" class="rubric-opt" data-val="0.6">0.6</button>
+          <button type="button" class="rubric-opt selected" data-val="1.2">1.2</button>
+          <button type="button" class="rubric-opt" data-val="1.6">1.6</button>
+          <button type="button" class="rubric-opt" data-val="2.0">2.0</button>
+        </div>
+      </div>
+
+      <div class="sheet-wrap" style="margin-bottom:14px;">
+        <table class="sheet-table">
+          <thead>
+            <tr>
+              <th>Includi</th>
+              <th>Alunno</th>
+              <th>Comp. (C)</th>
+              <th>Abil. (A)</th>
+              <th>Con. (K)</th>
+              <th>Totale / Voto Griglia</th>
+            </tr>
+          </thead>
+          <tbody id="batch-students-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="row" style="justify-content:space-between;">
+        <label class="row student-meta">
+          <input id="batch-synced-checkbox" type="checkbox" />
+          Segna tutti come già inseriti su registro
+        </label>
+        <button id="btn-save-class-eval" class="btn btn-primary" type="button">Salva Verifica per Selezionati</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODALE 2: SINGOLA GRIGLIA DI DIPARTIMENTO -->
+  <div id="eval-modal-backdrop">
+    <div class="modal-card" style="max-width:720px;">
       <div class="row" style="justify-content:space-between; margin-bottom:12px;">
         <h2 style="margin:0;">Griglia di Valutazione del Dipartimento</h2>
         <button id="btn-close-eval-modal" class="btn btn-outline btn-sm" type="button">Chiudi</button>
