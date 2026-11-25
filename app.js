@@ -69,9 +69,6 @@ async function initAuth() {
   document.getElementById("btn-login-google").onclick = () =>
     supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.href } });
 
-  document.getElementById("btn-login-github").onclick = () =>
-    supabase.auth.signInWithOAuth({ provider: "github", options: { redirectTo: window.location.href } });
-
   document.getElementById("btn-logout").onclick = () => supabase.auth.signOut();
 }
 
