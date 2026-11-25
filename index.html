@@ -33,7 +33,6 @@
 
     .hidden { display: none !important; }
 
-    /* Login */
     #login-screen {
       min-height: 100vh;
       display: flex;
@@ -62,7 +61,6 @@
       font-size: 0.9rem;
     }
 
-    /* Shell principale */
     header.topbar {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
@@ -93,7 +91,7 @@
       background: transparent;
       border: none;
       border-bottom: 2px solid transparent;
-      padding: 10px 14px;
+      padding: 10px 16px;
       font-size: 0.9rem;
       font-weight: 500;
       color: var(--muted);
@@ -125,6 +123,11 @@
       font-size: 1.05rem;
     }
 
+    .card h3 {
+      margin: 0 0 8px 0;
+      font-size: 0.95rem;
+    }
+
     .row {
       display: flex;
       flex-wrap: wrap;
@@ -142,7 +145,6 @@
       .grid-2 { grid-template-columns: 1fr; }
     }
 
-    /* Controlli form */
     input, select, textarea {
       font-family: inherit;
       font-size: 0.88rem;
@@ -206,7 +208,6 @@
       font-size: 0.8rem;
     }
 
-    /* Liste e badge */
     .student-item {
       display: flex;
       flex-wrap: wrap;
@@ -274,7 +275,6 @@
       cursor: pointer;
     }
 
-    /* Modale griglia valutazione */
     #eval-modal-backdrop {
       position: fixed;
       inset: 0;
@@ -333,7 +333,6 @@
       font-weight: 600;
     }
 
-    /* Toast */
     #toast {
       position: fixed;
       bottom: 18px;
@@ -347,7 +346,6 @@
       z-index: 200;
     }
 
-    /* Stampa */
     #print-area { display: none; }
 
     @media print {
@@ -361,7 +359,6 @@
 </head>
 <body>
 
-  <!-- Schermata di accesso -->
   <div id="login-screen">
     <div class="login-box">
       <h1>SchoolManager</h1>
@@ -373,7 +370,6 @@
     </div>
   </div>
 
-  <!-- Applicazione principale -->
   <div id="app-shell" class="hidden">
     <header class="topbar">
       <div class="row">
@@ -393,17 +389,14 @@
     </header>
 
     <nav class="tabs">
-      <button data-tab="tab-dashboard" class="active" type="button">Dashboard</button>
-      <button data-tab="tab-officina" type="button">Officina</button>
-      <button data-tab="tab-evaluations" type="button">Valutazioni e Calendario</button>
-      <button data-tab="tab-planned" type="button">Prove Minime</button>
-      <button data-tab="tab-cdc" type="button">Consiglio di Classe</button>
-      <button data-tab="tab-lessons" type="button">Schede Lezione</button>
+      <button data-tab="tab-dashboard" class="active" type="button">Dashboard e Turni</button>
+      <button data-tab="tab-officina" type="button">Officina e Valutazioni</button>
+      <button data-tab="tab-cdc" type="button">Consiglio di Classe e Lezioni</button>
     </nav>
 
     <main class="container">
 
-      <!-- TAB DASHBOARD -->
+      <!-- PAGINA 1: DASHBOARD E TURNI -->
       <section id="tab-dashboard" class="tab-panel">
         <div class="card">
           <div class="row" style="justify-content:space-between; margin-bottom:12px;">
@@ -425,7 +418,7 @@
           <div class="card" style="margin:0 0 14px 0; padding:12px;">
             <div class="row" style="justify-content:space-between; align-items:center;">
               <div>
-                <h3 style="margin:0 0 4px 0; font-size:0.95rem;">Orario Settimanale e Slittamento Turni</h3>
+                <h3>Orario Settimanale e Slittamento Turni</h3>
                 <div class="student-meta">
                   Mar 07:55-09:55: 3AM (Tecnologia) | Mar 11:55-13:55: 4AM (Gruppo 2) | Gio 09:55-11:55: 3AM (Gruppo 2) | Sab 08:55-10:45: 4AM (Gruppo 1)
                 </div>
@@ -444,13 +437,13 @@
 
           <div class="grid-2" style="gap:16px; align-items:start;">
             <div class="card" style="margin:0; padding:12px;">
-              <h3 style="margin:0 0 8px 0; font-size:0.95rem;">Turni Laboratorio (Alfabetico + Eccezioni)</h3>
+              <h3>Turni Laboratorio (Alfabetico + Eccezioni)</h3>
               <p class="student-meta" style="margin:0 0 10px 0;">Ordine alfabetico con slittamento automatico per giorni saltati e spostamento manuale mirato.</p>
               <div id="dash-shifts-list"></div>
             </div>
 
             <div class="card" style="margin:0; padding:12px;">
-              <h3 style="margin:0 0 8px 0; font-size:0.95rem;">Annotazioni e Situazioni da Monitorare</h3>
+              <h3>Annotazioni e Situazioni da Monitorare</h3>
               <p class="student-meta" style="margin:0 0 10px 0;">Segnalazioni recenti di laboratorio e verifiche registrate nella classe.</p>
               <div id="dash-alerts-list"></div>
             </div>
@@ -458,7 +451,7 @@
         </div>
       </section>
 
-      <!-- TAB 1: OFFICINA -->
+      <!-- PAGINA 2: OFFICINA, VALUTAZIONI (CALENDARIO / GRIGLIA) E PROVE MINIME -->
       <section id="tab-officina" class="tab-panel hidden">
         <div class="card">
           <div class="row" style="justify-content:space-between; margin-bottom:12px;">
@@ -474,10 +467,7 @@
           </div>
           <div id="officina-student-list"></div>
         </div>
-      </section>
 
-      <!-- TAB 2: VALUTAZIONI E CALENDARIO -->
-      <section id="tab-evaluations" class="tab-panel hidden">
         <div class="card">
           <div class="row" style="justify-content:space-between; margin-bottom:12px;">
             <h2 style="margin:0;">Valutazioni e Annotazioni</h2>
@@ -501,10 +491,7 @@
 
           <div id="evaluations-list"></div>
         </div>
-      </section>
 
-      <!-- TAB 3: PROVE MINIME -->
-      <section id="tab-planned" class="tab-panel hidden">
         <div class="card">
           <h2>Programmazione Prove Minime</h2>
           <div class="row" style="margin-bottom:12px;">
@@ -525,7 +512,7 @@
         </div>
       </section>
 
-      <!-- TAB 4: CONSIGLIO DI CLASSE -->
+      <!-- PAGINA 3: CONSIGLIO DI CLASSE E SCHEDE LEZIONE -->
       <section id="tab-cdc" class="tab-panel hidden">
         <div class="card">
           <h2>Riepilogo Consiglio di Classe</h2>
@@ -538,10 +525,7 @@
           </div>
           <textarea id="cdc-import-text" rows="4" style="width:100%;" placeholder="Cognome Nome; ore_assenza; turni_lab_persi"></textarea>
         </div>
-      </section>
 
-      <!-- TAB 5: SCHEDE LEZIONE -->
-      <section id="tab-lessons" class="tab-panel hidden">
         <div class="card">
           <h2>Schede Preparazione Lezione</h2>
           <div id="lesson-plans-list"></div>
