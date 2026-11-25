@@ -26,7 +26,7 @@
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
-    .wrap { max-width: 1140px; margin: 0 auto; }
+    .wrap { max-width: 1180px; margin: 0 auto; }
 
     .nav {
       display: flex;
@@ -234,6 +234,7 @@
     .table-wrap {
       margin-top: 12px;
       overflow-x: auto;
+      overflow-y: visible;
       border-radius: 10px;
       border: 1px solid var(--border);
       background: var(--card);
@@ -291,8 +292,50 @@
       margin-top: 0 !important;
       padding: 8px !important;
       font-size: 13px !important;
-      min-width: 90px;
+      min-width: 96px;
     }
+
+    /* Nuvola (tooltip) su Annot. periodo */
+    .nuvola-cell {
+      position: relative;
+      cursor: help;
+    }
+    .nuvola-box {
+      display: none;
+      position: fixed;
+      min-width: 220px;
+      max-width: 340px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #141416;
+      color: #ffffff;
+      border: 1px solid var(--accent);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.75);
+      font-size: 12px;
+      line-height: 1.45;
+      text-align: left;
+      white-space: normal;
+      z-index: 90;
+      pointer-events: none;
+    }
+    .nuvola-box.visible { display: block; }
+    .nuvola-item {
+      padding: 2px 0;
+      border-bottom: 1px solid #2c2c2e;
+    }
+    .nuvola-item:last-child { border-bottom: none; }
+
+    .proposta-badge {
+      display: inline-block;
+      padding: 4px 9px;
+      border-radius: 8px;
+      background: rgba(255, 159, 10, 0.14);
+      border: 1px solid rgba(255, 159, 10, 0.45);
+      color: var(--warning);
+      font-weight: 800;
+      font-size: 13px;
+    }
+
     .pill {
       display: inline-block;
       padding: 3px 8px;
@@ -381,7 +424,7 @@
         margin: 0 !important;
         font-size: 10px;
       }
-      .wrap, .modal-backdrop { display: none !important; }
+      .wrap, .modal-backdrop, .nuvola-box { display: none !important; }
       #print-area {
         display: block !important;
         width: 100%;
@@ -538,9 +581,8 @@
               <th>Alunno</th>
               <th>Griglia Dip.</th>
               <th>Annot. periodo</th>
-              <th>Voto finale</th>
-              <th>Annotazione (±0.25)</th>
-              <th>Desc. se -0.25</th>
+              <th>Proposta</th>
+              <th>Voto Mastercom</th>
             </tr>
           </thead>
           <tbody id="v-tbody"></tbody>
@@ -658,6 +700,9 @@
     </div>
   </div>
 
+  <!-- Nuvola flottante per dettaglio annotazioni periodo -->
+  <div id="nuvola-tooltip" class="nuvola-box"></div>
+
   <div id="print-area"></div>
 
   <script>
@@ -694,6 +739,31 @@
     let activeModalIscId = null;
     let activeModalNome = "";
 
+    // Costruisce le opzioni della tendina Voto Mastercom da 1.00 a 10.00 a passi di 0.25
+    // con regola 7.25 -> 7+, 7.75 -> 8-, ecc.
+    function formatVotoMastercom(num) {
+      const q = Math.round(num * 4) / 4;
+      const baseInt = Math.floor(q);
+      const frac = Math.round((q - baseInt) * 100) / 100;
+      if (frac === 0) return String(baseInt);
+      if (frac === 0.25) return `${baseInt}+`;
+      if (frac === 0.5) return `${baseInt}.5`;
+      if (frac === 0.75) return `${baseInt + 1}-`;
+      return String(q);
+    }
+
+    function buildMastercomOptionsHtml() {
+      const opts = ['<option value="">-- Voto --</option>'];
+      for (let v = 10; v >= 1; v -= 0.25) {
+        const valNum = Math.round(v * 100) / 100;
+        const label = formatVotoMastercom(valNum);
+        opts.push(`<option value="${label}">${label}</option>`);
+      }
+      return opts.join("");
+    }
+
+    const MASTERCOM_OPTIONS_HTML = buildMastercomOptionsHtml();
+
     window.addEventListener("DOMContentLoaded", () => {
       renderQuickButtons();
       syncAnnotazioneUI();
@@ -703,9 +773,11 @@
       const dd = String(oggi.getDate()).padStart(2, "0");
       document.getElementById("v-data").value = `${yyyy}-${mm}-${dd}`;
       refreshAnnoBox();
+      window.addEventListener("scroll", hideNuvola, true);
     });
 
     function showTab(tab) {
+      hideNuvola();
       ["singolo", "verifica", "prospetto", "classi"].forEach(t => {
         document.getElementById("view-" + t).classList.toggle("hidden", t !== tab);
         document.getElementById("tab-" + t).classList.toggle("active", t === tab);
@@ -960,8 +1032,9 @@
       }
     }
 
-    function getAnnotazioniPeriodo(iscId, materia, dataEvento) {
-      if (!materia || !dataEvento) return 0;
+    // Restituisce sia il totale punti che l'elenco dettagliato delle annotazioni del periodo
+    function getAnnotazioniPeriodoDettaglio(iscId, materia, dataEvento) {
+      if (!materia || !dataEvento) return { totale: 0, items: [] };
 
       const verPrecedenti = verificaColsCache
         .filter(c => {
@@ -978,63 +1051,117 @@
       const sogliaData = ultimaVer ? ultimaVer.data_evento : null;
       const sogliaCreato = ultimaVer ? (ultimaVer.creato_il || "") : "";
 
-      const colIdsValide = new Set(
-        verificaColsCache
-          .filter(c => {
-            if (c.tipo !== "annotazione" || c.materia !== materia) return false;
-            if (c.data_evento > dataEvento) return false;
-            if (!sogliaData) return true;
-            if (c.data_evento > sogliaData) return true;
-            if (c.data_evento === sogliaData) {
-              return (c.creato_il || "") > sogliaCreato;
-            }
-            return false;
-          })
-          .map(c => c.id)
-      );
+      const colMap = new Map();
+      for (const c of verificaColsCache) {
+        if (c.tipo !== "annotazione" || c.materia !== materia) continue;
+        if (c.data_evento > dataEvento) continue;
+        if (sogliaData) {
+          if (c.data_evento < sogliaData) continue;
+          if (c.data_evento === sogliaData && (c.creato_il || "") <= sogliaCreato) continue;
+        }
+        colMap.set(String(c.id), c);
+      }
 
-      if (colIdsValide.size === 0) return 0;
+      if (colMap.size === 0) return { totale: 0, items: [] };
 
       let somma = 0;
+      const items = [];
       for (const r of verificaRegsCache) {
-        if (r.iscrizione_id === iscId && colIdsValide.has(r.colonna_id) && r.annotazione_punti !== null) {
-          somma += Number(r.annotazione_punti);
+        if (r.iscrizione_id === iscId && colMap.has(String(r.colonna_id)) && r.annotazione_punti !== null) {
+          const col = colMap.get(String(r.colonna_id));
+          const pts = Number(r.annotazione_punti);
+          somma += pts;
+          const segno = pts > 0 ? `+${pts}` : `${pts}`;
+          const motivo = col.descrizione_negativa ? col.descrizione_negativa : (pts > 0 ? "Positiva" : "Senza motivazione");
+          items.push({
+            data: formatDataShort(col.data_evento),
+            segno,
+            motivo,
+            isPos: pts > 0
+          });
         }
       }
-      return Math.round(somma * 100) / 100;
+
+      return {
+        totale: Math.round(somma * 100) / 100,
+        items
+      };
     }
 
     function roundToQuarter(val) {
       return Math.round(val * 4) / 4;
     }
 
-    function formatScore(num) {
+    function formatSignedNumber(num) {
       const rounded = Math.round(num * 100) / 100;
+      if (rounded > 0) return `+${rounded}`;
       return String(rounded);
+    }
+
+    function showNuvola(el, iscId) {
+      const materia = document.getElementById("v-materia").value;
+      const dataEvento = document.getElementById("v-data").value;
+      const det = getAnnotazioniPeriodoDettaglio(iscId, materia, dataEvento);
+      const box = document.getElementById("nuvola-tooltip");
+
+      let html = `<div style="font-weight:700;margin-bottom:4px;color:var(--warning);">Annotazioni ${materia} nel periodo</div>`;
+      if (det.items.length === 0) {
+        html += `<div style="color:var(--muted);">Nessuna annotazione maturata fino a ${formatDataShort(dataEvento) || "data"}.</div>`;
+      } else {
+        html += det.items.map(it => {
+          const col = it.isPos ? "var(--pos)" : "var(--neg)";
+          return `<div class="nuvola-item"><span style="color:${col};font-weight:700;">${it.segno}</span> (${it.data}) — ${it.motivo}</div>`;
+        }).join("");
+      }
+
+      box.innerHTML = html;
+      box.classList.add("visible");
+
+      const rect = el.getBoundingClientRect();
+      const top = Math.min(window.innerHeight - box.offsetHeight - 10, rect.bottom + 6);
+      const left = Math.min(window.innerWidth - box.offsetWidth - 10, Math.max(10, rect.left));
+      box.style.top = `${Math.max(10, top)}px`;
+      box.style.left = `${left}px`;
+    }
+
+    function hideNuvola() {
+      const box = document.getElementById("nuvola-tooltip");
+      if (box) box.classList.remove("visible");
     }
 
     function recalcRowVoto(tr) {
       const iscId = tr.getAttribute("data-isc-id");
       const materia = document.getElementById("v-materia").value;
       const dataEvento = document.getElementById("v-data").value;
-      const ptsAnn = getAnnotazioniPeriodo(iscId, materia, dataEvento);
+      const det = getAnnotazioniPeriodoDettaglio(iscId, materia, dataEvento);
+      const ptsAnn = det.totale;
 
       const annBadge = tr.querySelector(".v-ann-pts");
       if (annBadge) {
         if (ptsAnn > 0) {
-          annBadge.innerHTML = `<span style="color:var(--pos);font-weight:700;">+${formatScore(ptsAnn)}</span>`;
+          annBadge.innerHTML = `<span style="color:var(--pos);font-weight:700;">${formatSignedNumber(ptsAnn)}</span>`;
         } else if (ptsAnn < 0) {
-          annBadge.innerHTML = `<span style="color:var(--neg);font-weight:700;">${formatScore(ptsAnn)}</span>`;
+          annBadge.innerHTML = `<span style="color:var(--neg);font-weight:700;">${formatSignedNumber(ptsAnn)}</span>`;
         } else {
           annBadge.innerHTML = `<span style="color:var(--muted);">0</span>`;
         }
       }
 
       const griglia = grigliaPerAlunno.get(iscId);
-      const votoInput = tr.querySelector(".v-voto");
-      if (griglia && typeof griglia.base === "number" && votoInput) {
-        const finale = roundToQuarter(griglia.base + ptsAnn);
-        votoInput.value = formatScore(finale);
+      const propEl = tr.querySelector(".v-proposta");
+      const votoSelect = tr.querySelector(".v-voto-select");
+
+      if (griglia && typeof griglia.base === "number") {
+        const finaleNum = roundToQuarter(griglia.base + ptsAnn);
+        const propostaLabel = formatVotoMastercom(finaleNum);
+        if (propEl) {
+          propEl.innerHTML = `<span class="proposta-badge">${propostaLabel}</span>`;
+        }
+        if (votoSelect) {
+          votoSelect.value = propostaLabel;
+        }
+      } else if (propEl) {
+        propEl.innerHTML = `<span style="color:var(--muted);">—</span>`;
       }
     }
 
@@ -1073,14 +1200,15 @@
 
       const materia = document.getElementById("v-materia").value;
       const dataEvento = document.getElementById("v-data").value;
-      const ptsAnn = activeModalIscId ? getAnnotazioniPeriodo(activeModalIscId, materia, dataEvento) : 0;
-      const finale = roundToQuarter(base + ptsAnn);
+      const det = activeModalIscId ? getAnnotazioniPeriodoDettaglio(activeModalIscId, materia, dataEvento) : { totale: 0 };
+      const ptsAnn = det.totale;
+      const finaleNum = roundToQuarter(base + ptsAnn);
+      const propostaLabel = formatVotoMastercom(finaleNum);
 
-      const annStr = ptsAnn > 0 ? `+${formatScore(ptsAnn)}` : formatScore(ptsAnn);
       document.getElementById("gm-preview").innerHTML = `
-        <div>Base griglia: <strong>${formatScore(base)}/10</strong></div>
-        <div>Annotazioni periodo: <strong>${annStr}</strong></div>
-        <div>Voto calcolato: <strong style="color:var(--pos);font-size:15px;">${formatScore(finale)}</strong></div>
+        <div>Base griglia: <strong>${base}/10</strong></div>
+        <div>Annotazioni periodo: <strong>${formatSignedNumber(ptsAnn)}</strong></div>
+        <div>Proposta voto: <strong style="color:var(--pos);font-size:15px;">${propostaLabel}</strong></div>
       `;
     }
 
@@ -1096,7 +1224,7 @@
       const tr = document.querySelector(`#v-tbody tr[data-isc-id="${activeModalIscId}"]`);
       if (tr) {
         const btn = tr.querySelector(".grid-open-btn");
-        if (btn) btn.innerText = `📋 ${formatScore(base)}`;
+        if (btn) btn.innerText = `📋 ${base}`;
         recalcRowVoto(tr);
       }
       closeGrigliaModal();
@@ -1107,9 +1235,7 @@
       document.getElementById("v-existing-select").value = "";
       document.getElementById("v-argomento").value = "";
       document.querySelectorAll("#v-tbody tr").forEach(tr => {
-        tr.querySelector(".v-voto").value = "";
-        tr.querySelector(".v-ann").value = "";
-        tr.querySelector(".v-desc").value = "";
+        tr.querySelector(".v-voto-select").value = "";
       });
       grigliaPerAlunno.clear();
       document.querySelectorAll(".grid-open-btn").forEach(b => b.innerText = "📋 Griglia");
@@ -1138,16 +1264,15 @@
 
       document.querySelectorAll("#v-tbody tr").forEach(tr => {
         const iscId = tr.getAttribute("data-isc-id");
-        const votoInp = tr.querySelector(".v-voto");
-        tr.querySelector(".v-ann").value = "";
-        tr.querySelector(".v-desc").value = "";
-        votoInp.value = votiSalvati.has(String(iscId)) ? votiSalvati.get(String(iscId)) : "";
+        const votoSelect = tr.querySelector(".v-voto-select");
+        votoSelect.value = votiSalvati.has(String(iscId)) ? votiSalvati.get(String(iscId)) : "";
       });
 
       recalcAllVerificaRows();
     }
 
     async function loadVerificaGrid() {
+      hideNuvola();
       const cl = document.getElementById("v-classe").value;
       const dataEvento = document.getElementById("v-data").value;
       const wrap = document.getElementById("v-grid-wrap");
@@ -1170,7 +1295,7 @@
 
         const { data: cols, error: colErr } = await sb
           .from("colonne_evento")
-          .select("id, data_evento, tipo, materia, argomento, creato_il")
+          .select("id, data_evento, tipo, materia, argomento, verso_annotazione, descrizione_negativa, creato_il")
           .eq("classe_anno_id", classeAnnoId)
           .order("data_evento", { ascending: true })
           .order("creato_il", { ascending: true });
@@ -1197,16 +1322,13 @@
             <tr data-isc-id="${i.id}">
               <td><strong>${i.alunni.nome_cognome}</strong></td>
               <td><button type="button" class="grid-open-btn" onclick="openGrigliaModal('${i.id}', '${safeNome}')">📋 Griglia</button></td>
-              <td class="v-ann-pts">0</td>
-              <td><input type="text" class="cell-inp v-voto" placeholder="Es: 7"></td>
+              <td class="v-ann-pts nuvola-cell" onmouseenter="showNuvola(this, '${i.id}')" onmouseleave="hideNuvola()" onclick="showNuvola(this, '${i.id}')">0</td>
+              <td class="v-proposta"><span style="color:var(--muted);">—</span></td>
               <td>
-                <select class="cell-inp v-ann">
-                  <option value="">--</option>
-                  <option value="0.25">+0.25</option>
-                  <option value="-0.25">-0.25</option>
+                <select class="cell-inp v-voto-select">
+                  ${MASTERCOM_OPTIONS_HTML}
                 </select>
               </td>
-              <td><input type="text" class="cell-inp v-desc" placeholder="Solo se -0.25"></td>
             </tr>
           `;
         }).join("");
@@ -1262,30 +1384,16 @@
 
       for (const tr of rows) {
         const iscId = tr.getAttribute("data-isc-id");
-        const voto = tr.querySelector(".v-voto").value.trim();
-        const annStr = tr.querySelector(".v-ann").value;
-        const desc = tr.querySelector(".v-desc").value.trim();
-
-        if (!voto && !annStr) continue;
-        if (voto && annStr) {
-          alert("Per ogni alunno inserisci o il voto oppure l'annotazione (±0.25), non entrambi.");
-          return;
-        }
-        if (annStr === "-0.25" && !desc) {
-          alert("Inserisci la descrizione per l'annotazione -0.25.");
-          return;
-        }
-
+        const voto = tr.querySelector(".v-voto-select").value.trim();
+        if (!voto) continue;
         daSalvare.push({
           iscrizione_id: iscId,
-          voto: voto || null,
-          annotazione_punti: annStr ? Number(annStr) : null,
-          desc: desc || null
+          voto
         });
       }
 
       if (daSalvare.length === 0) {
-        alert("Compila almeno una riga della griglia.");
+        alert("Seleziona almeno un voto Mastercom nella griglia.");
         return;
       }
 
@@ -1326,45 +1434,19 @@
         const daAggiornare = [];
 
         for (const item of daSalvare) {
-          if (item.voto) {
-            const regIdEsistente = mapRegEsistente.get(String(item.iscrizione_id));
-            if (regIdEsistente) {
-              daAggiornare.push({
-                id: regIdEsistente,
-                voto: item.voto,
-                annotazione_punti: null
-              });
-            } else {
-              daInserire.push({
-                iscrizione_id: item.iscrizione_id,
-                colonna_id: colonnaVerId,
-                voto: item.voto,
-                annotazione_punti: null
-              });
-            }
+          const regIdEsistente = mapRegEsistente.get(String(item.iscrizione_id));
+          if (regIdEsistente) {
+            daAggiornare.push({
+              id: regIdEsistente,
+              voto: item.voto,
+              annotazione_punti: null
+            });
           } else {
-            const verso = item.annotazione_punti > 0 ? "pos" : "neg";
-            const { data: colAnn, error: errAnn } = await sb
-              .from("colonne_evento")
-              .insert({
-                classe_anno_id: classeAnnoId,
-                data_evento: dataEvento,
-                tipo: "annotazione",
-                materia: materia,
-                argomento: null,
-                verso_annotazione: verso,
-                descrizione_negativa: verso === "neg" ? item.desc : ""
-              })
-              .select("id")
-              .limit(1);
-            if (errAnn) throw new Error(errAnn.message);
-            if (!colAnn || colAnn.length === 0) throw new Error("Colonna annotazione non creata.");
-
             daInserire.push({
               iscrizione_id: item.iscrizione_id,
-              colonna_id: colAnn[0].id,
-              voto: null,
-              annotazione_punti: item.annotazione_punti
+              colonna_id: colonnaVerId,
+              voto: item.voto,
+              annotazione_punti: null
             });
           }
         }
@@ -1383,7 +1465,7 @@
         }
 
         activeVerificaColId = colonnaVerId;
-        st.innerText = `✅ Salvati/aggiornati ${daSalvare.length} inserimenti per ${cl}.`;
+        st.innerText = `✅ Salvati/aggiornati ${daSalvare.length} voti per ${cl}.`;
         await loadVerificaGrid();
       } catch (e) {
         st.innerText = "❌ Errore: " + e.message;
