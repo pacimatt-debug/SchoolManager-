@@ -84,46 +84,24 @@
     }
 
     .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .ann-action-row {
+    .sign-row {
       display: flex;
       gap: 10px;
       margin-top: 6px;
     }
-    .plus-btn {
-      flex: 0 0 64px;
+    .sign-btn {
+      flex: 1;
       padding: 12px;
       border: none;
       border-radius: 10px;
-      background: var(--pos);
       color: #fff;
       font-size: 22px;
       font-weight: 800;
       cursor: pointer;
     }
-    .plus-btn.selected {
-      outline: 3px solid #fff;
-    }
-    .minus-badge {
-      flex: 1;
-      padding: 12px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: var(--input-bg);
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 700;
-      text-align: center;
-    }
-    .minus-badge.active-neg {
-      border-color: var(--neg);
-      color: var(--neg);
-      background: rgba(255, 69, 58, 0.12);
-    }
-    .minus-badge.active-pos {
-      border-color: var(--pos);
-      color: var(--pos);
-      background: rgba(48, 209, 88, 0.12);
-    }
+    .sign-btn.plus { background: var(--pos); }
+    .sign-btn.minus { background: var(--neg); }
+    .sign-btn.selected { outline: 3px solid #fff; }
 
     .quick-btn {
       flex: 1;
@@ -139,7 +117,7 @@
       cursor: pointer;
     }
     .quick-btn.selected {
-      background: rgba(255, 159, 10, 0.18);
+      background: rgba(255, 159, 10, 0.2);
       border-width: 2px;
     }
     .quick-btn:active { opacity: 0.75; }
@@ -231,7 +209,7 @@
       <button id="tab-prospetto" onclick="showTab('prospetto')">Prospetto</button>
     </div>
 
-    <!-- 1. A-CLASSI (SOLO ANNOTAZIONI: + oppure pulsanti rapidi negativi) -->
+    <!-- 1. A-CLASSI (SOLO ANNOTAZIONI: + oppure - senza motivazione oppure pulsanti rapidi precompilati) -->
     <div id="view-singolo" class="card narrow">
       <h2>A-Classi</h2>
 
@@ -255,19 +233,14 @@
         <option value="DISEGNO">DISEGNO</option>
       </select>
 
-      <label>Annotazione</label>
-      <div class="ann-action-row">
-        <button type="button" id="btn-plus" class="plus-btn" title="Annotazione positiva" onclick="selectPositiva()">+</button>
-        <div id="ann-stato" class="minus-badge active-neg">Negativa (usa un pulsante rapido)</div>
+      <label>Annotazione rapida (+0.25 / -0.25)</label>
+      <div class="sign-row">
+        <button type="button" id="btn-plus" class="sign-btn plus" title="Annotazione positiva (+0.25)" onclick="selectPositiva()">+</button>
+        <button type="button" id="btn-minus" class="sign-btn minus" title="Annotazione negativa (-0.25) senza motivazione" onclick="selectMinusSenzaDesc()">-</button>
       </div>
 
       <label id="quick-label">Pulsanti rapidi negativi</label>
       <div id="quick-btns" class="row"></div>
-
-      <div id="box-desc-neg">
-        <label>Descrizione annotazione negativa</label>
-        <input type="text" id="s-desc-neg" placeholder="Obbligatoria per annotazione negativa (es. No DPI)">
-      </div>
 
       <button id="s-btn" class="primary-btn" onclick="saveSingolo()">REGISTRA ANNOTAZIONE</button>
       <div id="s-status" class="status"></div>
@@ -351,24 +324,28 @@
     const SUPABASE_ANON_KEY = "sb_publishable_Yv8ob9MdEaYb9fcsavar8Q_nCLc0HX0";
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // Ogni pulsante rapido imposta un'annotazione negativa (-0.25) con la relativa descrizione
+    // Pulsanti rapidi precompilati per annotazioni negative (-0.25)
     const QUICK_NEG_BY_MATERIA = {
       TECNOLOGIA: [
         { label: "⚠️ NO DPI", desc: "No DPI" },
         { label: "⚙️ PARAMETRI", desc: "Errati Parametri" },
-        { label: "🧹 NO PULIZIA", desc: "No Pulizia" }
+        { label: "🧹 NO PULIZIA", desc: "No Pulizia" },
+        { label: "📦 NO RIORDINO", desc: "Attrezzature non a posto" }
       ],
       SISTEMI: [
-        { label: "⚡ ERRORE CABLAGGIO", desc: "Errore Cablaggio" }
+        { label: "⚡ ERRORE CABLAGGIO", desc: "Errore Cablaggio" },
+        { label: "📦 NO RIORDINO", desc: "Attrezzature non a posto" }
       ],
       DISEGNO: [
-        { label: "✏️ TRATTO / QUOTE", desc: "Tratto/Quote" }
+        { label: "💻 RISPETTO PC", desc: "Rispetto PC" }
       ]
     };
 
-    // 'pos' (+0.25 senza descrizione) oppure 'neg' (-0.25 con descrizione)
-    let versoAnnotazioneSingola = "neg";
-    let quickSelezionatoIndex = null;
+    // Selezione attiva:
+    // { verso: 'pos' } -> +0.25 senza descrizione
+    // { verso: 'neg', desc: null } -> -0.25 senza motivazione (pulsante "-")
+    // { verso: 'neg', desc: '...', quickIndex: 0 } -> -0.25 con motivazione precompilata
+    let selezioneAnnotazione = { verso: "neg", desc: null, quickIndex: null };
     let annoAttivoCache = null;
 
     window.addEventListener("DOMContentLoaded", () => {
@@ -389,37 +366,31 @@
     }
 
     function syncAnnotazioneUI() {
-      const btnPlus = document.getElementById("btn-plus");
-      const badge = document.getElementById("ann-stato");
-      const boxDesc = document.getElementById("box-desc-neg");
+      const isPos = selezioneAnnotazione.verso === "pos";
+      const isPlainMinus = selezioneAnnotazione.verso === "neg" && selezioneAnnotazione.quickIndex === null;
 
-      btnPlus.classList.toggle("selected", versoAnnotazioneSingola === "pos");
-      boxDesc.classList.toggle("hidden", versoAnnotazioneSingola !== "neg");
-
-      if (versoAnnotazioneSingola === "pos") {
-        badge.className = "minus-badge active-pos";
-        badge.innerText = "Annotazione positiva (+) selezionata";
-      } else {
-        badge.className = "minus-badge active-neg";
-        badge.innerText = "Annotazione negativa (-) selezionata";
-      }
+      document.getElementById("btn-plus").classList.toggle("selected", isPos);
+      document.getElementById("btn-minus").classList.toggle("selected", isPlainMinus);
 
       document.querySelectorAll(".quick-btn").forEach((b, idx) => {
-        b.classList.toggle("selected", versoAnnotazioneSingola === "neg" && quickSelezionatoIndex === idx);
+        b.classList.toggle("selected", selezioneAnnotazione.verso === "neg" && selezioneAnnotazione.quickIndex === idx);
       });
     }
 
     function selectPositiva() {
-      versoAnnotazioneSingola = "pos";
-      quickSelezionatoIndex = null;
-      document.getElementById("s-desc-neg").value = "";
+      selezioneAnnotazione = { verso: "pos", desc: null, quickIndex: null };
+      syncAnnotazioneUI();
+    }
+
+    function selectMinusSenzaDesc() {
+      selezioneAnnotazione = { verso: "neg", desc: null, quickIndex: null };
       syncAnnotazioneUI();
     }
 
     function renderQuickButtons() {
       const mat = document.getElementById("s-materia").value;
       const items = QUICK_NEG_BY_MATERIA[mat] || [];
-      quickSelezionatoIndex = null;
+      selezioneAnnotazione = { verso: "neg", desc: null, quickIndex: null };
       document.getElementById("quick-label").innerText = `Pulsanti rapidi negativi ${mat}`;
       document.getElementById("quick-btns").innerHTML = items.map((it, i) => (
         `<button type="button" class="quick-btn" onclick="applyQuickNeg(${i})">${it.label}</button>`
@@ -431,9 +402,7 @@
       const mat = document.getElementById("s-materia").value;
       const it = (QUICK_NEG_BY_MATERIA[mat] || [])[index];
       if (!it) return;
-      versoAnnotazioneSingola = "neg";
-      quickSelezionatoIndex = index;
-      document.getElementById("s-desc-neg").value = it.desc;
+      selezioneAnnotazione = { verso: "neg", desc: it.desc, quickIndex: index };
       syncAnnotazioneUI();
     }
 
@@ -506,14 +475,7 @@
 
       const oggiIso = new Date().toISOString().slice(0, 10);
       const classeAnnoId = await getClasseAnnoId(cl);
-
-      const isPos = versoAnnotazioneSingola === "pos";
-      const desc = document.getElementById("s-desc-neg").value.trim();
-
-      if (!isPos && !desc) {
-        alert("Inserisci la descrizione per l'annotazione negativa.");
-        return;
-      }
+      const isPos = selezioneAnnotazione.verso === "pos";
 
       const colonnaPayload = {
         classe_anno_id: classeAnnoId,
@@ -521,7 +483,7 @@
         tipo: "annotazione",
         materia: null,
         verso_annotazione: isPos ? "pos" : "neg",
-        descrizione_negativa: isPos ? null : desc
+        descrizione_negativa: isPos ? null : (selezioneAnnotazione.desc || null)
       };
 
       const regPayload = {
@@ -545,9 +507,6 @@
         if (regErr) throw new Error(regErr.message);
 
         st.innerText = isPos ? "✅ Annotazione (+) registrata!" : "✅ Annotazione (-) registrata!";
-        document.getElementById("s-desc-neg").value = "";
-        quickSelezionatoIndex = null;
-        syncAnnotazioneUI();
       } catch (e) {
         st.innerText = "❌ Errore: " + e.message;
       } finally {
