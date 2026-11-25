@@ -30,7 +30,8 @@
 
     .nav {
       display: flex;
-      gap: 8px;
+      gap: 6px;
+      flex-wrap: wrap;
       background: var(--card);
       padding: 6px;
       border-radius: 12px;
@@ -39,6 +40,7 @@
     }
     .nav button {
       flex: 1;
+      min-width: 110px;
       padding: 10px 8px;
       border: none;
       border-radius: 9px;
@@ -62,6 +64,7 @@
     }
     .narrow { max-width: 480px; margin: 0 auto; }
     h2 { margin: 0 0 8px; font-size: 18px; text-align: center; }
+    h3 { margin: 18px 0 6px; font-size: 14px; color: var(--warning); }
 
     label {
       display: block;
@@ -72,7 +75,7 @@
       color: var(--muted);
       letter-spacing: 0.4px;
     }
-    select, input[type="text"], input[type="date"] {
+    select, input[type="text"], input[type="date"], textarea {
       width: 100%;
       margin-top: 5px;
       padding: 12px;
@@ -81,14 +84,12 @@
       background: var(--input-bg);
       color: var(--text);
       font-size: 15px;
+      font-family: inherit;
     }
+    textarea { min-height: 110px; resize: vertical; font-size: 14px; }
 
     .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .sign-row {
-      display: flex;
-      gap: 10px;
-      margin-top: 6px;
-    }
+    .sign-row { display: flex; gap: 10px; margin-top: 6px; }
     .sign-btn {
       flex: 1;
       padding: 12px;
@@ -124,8 +125,8 @@
 
     .primary-btn {
       width: 100%;
-      margin-top: 20px;
-      padding: 15px;
+      margin-top: 16px;
+      padding: 14px;
       border: none;
       border-radius: 12px;
       background: var(--accent);
@@ -134,6 +135,7 @@
       font-weight: 700;
       cursor: pointer;
     }
+    .primary-btn.warn { background: var(--warning); color: #121212; }
     .primary-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
     .status {
@@ -198,6 +200,15 @@
       color: var(--muted);
       border: 1px solid var(--border);
     }
+    .info-box {
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: 10px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      font-size: 13px;
+      line-height: 1.45;
+    }
     .hidden { display: none; }
   </style>
 </head>
@@ -207,6 +218,7 @@
       <button id="tab-singolo" class="active" onclick="showTab('singolo')">A-Classi</button>
       <button id="tab-verifica" onclick="showTab('verifica')">Caricamento Verifica</button>
       <button id="tab-prospetto" onclick="showTab('prospetto')">Prospetto</button>
+      <button id="tab-classi" onclick="showTab('classi')">Classi &amp; Anno</button>
     </div>
 
     <!-- 1. A-CLASSI (SOLO ANNOTAZIONI: + oppure - senza motivazione oppure pulsanti rapidi precompilati) -->
@@ -317,6 +329,37 @@
         <table id="p-table"></table>
       </div>
     </div>
+
+    <!-- 4. CLASSI & AVANZAMENTO ANNO SCOLASTICO -->
+    <div id="view-classi" class="card narrow hidden">
+      <h2>Classi &amp; Anno Scolastico</h2>
+
+      <div id="anno-info" class="info-box">⏳ Caricamento anno attivo...</div>
+
+      <h3>Inserisci alunni nella classe attiva</h3>
+      <label>Classe di destinazione</label>
+      <select id="c-classe">
+        <option value="3AM">3AM</option>
+        <option value="4AM">4AM</option>
+        <option value="5AM">5AM</option>
+      </select>
+
+      <label>Nomi e cognomi (uno per riga)</label>
+      <textarea id="c-nomi" placeholder="Rossi Mario&#10;Bianchi Luca&#10;Verdi Giulia"></textarea>
+
+      <button id="c-add-btn" class="primary-btn" onclick="addAlunniBatch()">AGGIUNGI ALUNNI ALLA CLASSE</button>
+
+      <h3>Scorrimento di fine anno</h3>
+      <div class="info-box">
+        Promuove <strong>3AM → 4AM</strong> e <strong>4AM → 5AM</strong>, segna la <strong>5AM</strong> come diplomati e crea una nuova <strong>3AM</strong> per la classe entrante, conservando lo storico dell'anno precedente.
+      </div>
+
+      <label>Etichetta nuovo anno scolastico</label>
+      <input type="text" id="c-nuovo-anno" placeholder="Es: 2027-2028">
+
+      <button id="c-avanza-btn" class="primary-btn warn" onclick="avanzaAnno()">ESEGUI SCORRIMENTO ANNO</button>
+      <div id="c-status" class="status"></div>
+    </div>
   </div>
 
   <script>
@@ -324,7 +367,6 @@
     const SUPABASE_ANON_KEY = "sb_publishable_Yv8ob9MdEaYb9fcsavar8Q_nCLc0HX0";
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // Pulsanti rapidi precompilati per annotazioni negative (-0.25)
     const QUICK_NEG_BY_MATERIA = {
       TECNOLOGIA: [
         { label: "⚠️ NO DPI", desc: "No DPI" },
@@ -341,10 +383,6 @@
       ]
     };
 
-    // Selezione attiva:
-    // { verso: 'pos' } -> +0.25 senza descrizione
-    // { verso: 'neg', desc: null } -> -0.25 senza motivazione (pulsante "-")
-    // { verso: 'neg', desc: '...', quickIndex: 0 } -> -0.25 con motivazione precompilata
     let selezioneAnnotazione = { verso: "neg", desc: null, quickIndex: null };
     let annoAttivoCache = null;
 
@@ -356,13 +394,15 @@
       const mm = String(oggi.getMonth() + 1).padStart(2, "0");
       const dd = String(oggi.getDate()).padStart(2, "0");
       document.getElementById("v-data").value = `${yyyy}-${mm}-${dd}`;
+      refreshAnnoBox();
     });
 
     function showTab(tab) {
-      ["singolo", "verifica", "prospetto"].forEach(t => {
+      ["singolo", "verifica", "prospetto", "classi"].forEach(t => {
         document.getElementById("view-" + t).classList.toggle("hidden", t !== tab);
         document.getElementById("tab-" + t).classList.toggle("active", t === tab);
       });
+      if (tab === "classi") refreshAnnoBox();
     }
 
     function syncAnnotazioneUI() {
@@ -406,8 +446,8 @@
       syncAnnotazioneUI();
     }
 
-    async function getAnnoAttivo() {
-      if (annoAttivoCache) return annoAttivoCache;
+    async function getAnnoAttivo(forceRefresh = false) {
+      if (annoAttivoCache && !forceRefresh) return annoAttivoCache;
       const { data, error } = await sb
         .from("anni_scolastici")
         .select("id, etichetta")
@@ -416,6 +456,24 @@
       if (error) throw new Error("Anno scolastico attivo non trovato: " + error.message);
       annoAttivoCache = data;
       return data;
+    }
+
+    async function refreshAnnoBox() {
+      const box = document.getElementById("anno-info");
+      try {
+        const anno = await getAnnoAttivo(true);
+        box.innerHTML = `Anno scolastico attivo: <strong>${anno.etichetta}</strong>`;
+        const parti = anno.etichetta.split("-");
+        if (parti.length === 2 && !document.getElementById("c-nuovo-anno").value) {
+          const y1 = Number(parti[0]) + 1;
+          const y2 = Number(parti[1]) + 1;
+          if (!Number.isNaN(y1) && !Number.isNaN(y2)) {
+            document.getElementById("c-nuovo-anno").value = `${y1}-${y2}`;
+          }
+        }
+      } catch (e) {
+        box.innerHTML = `<span style="color:var(--neg);">❌ ${e.message}</span>`;
+      }
     }
 
     async function getClasseAnnoId(codiceClasse) {
@@ -459,6 +517,78 @@
         st.innerText = "";
       } catch (e) {
         st.innerText = "❌ " + e.message;
+      }
+    }
+
+    async function addAlunniBatch() {
+      const cl = document.getElementById("c-classe").value;
+      const raw = document.getElementById("c-nomi").value;
+      const st = document.getElementById("c-status");
+      const btn = document.getElementById("c-add-btn");
+
+      const nomi = raw.split(/\r?\n/).map(n => n.trim()).filter(Boolean);
+      if (!cl || nomi.length === 0) {
+        alert("Seleziona la classe e inserisci almeno un nome.");
+        return;
+      }
+
+      btn.disabled = true;
+      st.innerText = "⏳ Inserimento alunni...";
+      try {
+        const classeAnnoId = await getClasseAnnoId(cl);
+        const { data: inseriti, error: errAl } = await sb
+          .from("alunni")
+          .insert(nomi.map(nome_cognome => ({ nome_cognome })))
+          .select("id");
+        if (errAl) throw new Error(errAl.message);
+
+        const iscrizioni = (inseriti || []).map(a => ({
+          alunno_id: a.id,
+          classe_anno_id: classeAnnoId,
+          stato: "attivo"
+        }));
+        const { error: errIsc } = await sb.from("iscrizioni").insert(iscrizioni);
+        if (errIsc) throw new Error(errIsc.message);
+
+        document.getElementById("c-nomi").value = "";
+        st.innerText = `✅ Aggiunti ${iscrizioni.length} alunni in ${cl}.`;
+      } catch (e) {
+        st.innerText = "❌ Errore: " + e.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function avanzaAnno() {
+      const nuovaEtichetta = document.getElementById("c-nuovo-anno").value.trim();
+      const st = document.getElementById("c-status");
+      const btn = document.getElementById("c-avanza-btn");
+
+      if (!nuovaEtichetta) {
+        alert("Inserisci l'etichetta del nuovo anno scolastico (es. 2027-2028).");
+        return;
+      }
+
+      const annoAttuale = await getAnnoAttivo(true);
+      const ok = confirm(`Confermi lo scorrimento dall'anno ${annoAttuale.etichetta} al nuovo anno ${nuovaEtichetta}?`);
+      if (!ok) return;
+
+      btn.disabled = true;
+      st.innerText = "⏳ Scorrimento anno in corso...";
+      try {
+        const { error } = await sb.rpc("avanza_anno_scolastico", {
+          p_anno_corrente_id: annoAttuale.id,
+          p_nuovo_anno_etichetta: nuovaEtichetta
+        });
+        if (error) throw new Error(error.message);
+
+        annoAttivoCache = null;
+        await refreshAnnoBox();
+        st.innerText = `✅ Anno aggiornato a ${nuovaEtichetta}!`;
+      } catch (e) {
+        st.innerText = "❌ Errore: " + e.message;
+      } finally {
+        btn.disabled = false;
       }
     }
 
