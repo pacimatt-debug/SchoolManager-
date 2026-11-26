@@ -1088,6 +1088,14 @@
       <label>Note / Misure compensative o dispensative</label>
       <textarea id="sm-note" placeholder="Es: tempi aggiuntivi, formulario, supporto visivo..."></textarea>
 
+      <label>Filtro materia per esportazione PDF singolo</label>
+      <select id="sm-materia-filter">
+        <option value="TUTTE">Tutte le materie</option>
+        <option value="TECNOLOGIA">TECNOLOGIA</option>
+        <option value="SISTEMI">SISTEMI</option>
+        <option value="DISEGNO">DISEGNO</option>
+      </select>
+
       <div id="sm-status" class="status"></div>
 
       <div class="row" style="margin-top:12px;">
@@ -1929,6 +1937,7 @@
         return;
       }
       const alunnoId = document.getElementById("sm-alunno-select").value;
+      const materiaFilter = document.getElementById("sm-materia-filter").value || "TUTTE";
       const { cl, annoLabel, iscr, colList, mapReg } = ultimoProspettoData;
       const iscItem = iscr.find(i => String(i.alunni.id) === String(alunnoId));
       if (!iscItem) return;
@@ -1937,16 +1946,19 @@
       const badge = getAlunnoBadgeInfo(al);
       const profiloText = badge ? badge.fullText : "Nessun profilo specifico (ordinario)";
       const noteText = al.note_supporto ? al.note_supporto : "Nessuna nota particolare registrata.";
+      const materiaLabel = materiaFilter === "TUTTE" ? "Tutte le materie" : materiaFilter;
 
       const eventiRows = [];
       const griglieDettaglio = [];
 
       for (const c of colList) {
+        const materia = c.materia || "—";
+        if (materiaFilter !== "TUTTE" && materia !== materiaFilter) continue;
+
         const r = mapReg.get(`${iscItem.id}__${c.id}`);
         if (!r) continue;
 
         const dataEstesa = c.data_evento || "";
-        const materia = c.materia || "—";
         const argomento = c.argomento || "—";
 
         if (r.voto) {
@@ -1995,7 +2007,7 @@
 
       const griglieHtml = griglieDettaglio.length > 0
         ? `<div class="student-report-box">
-            <h4>Dettaglio Griglie di Valutazione (Conoscenze / Abilità / Competenze)</h4>
+            <h4>Dettaglio Griglie di Valutazione — ${materiaLabel}</h4>
             <table class="report-tbl">
               <thead>
                 <tr>
@@ -2028,8 +2040,8 @@
             </table>
           </div>`
         : `<div class="student-report-box">
-            <h4>Dettaglio Griglie di Valutazione</h4>
-            <div>Nessuna griglia analitica registrata per l'alunno.</div>
+            <h4>Dettaglio Griglie di Valutazione — ${materiaLabel}</h4>
+            <div>Nessuna griglia analitica registrata per il filtro selezionato.</div>
           </div>`;
 
       const printArea = document.getElementById("print-area");
@@ -2037,18 +2049,18 @@
         <div class="print-page student-report">
           <div class="print-header">
             <div class="print-title">SchoolManager — Fascicolo Valutazioni Alunno (Accesso agli Atti)</div>
-            <div class="print-meta">A.S. ${annoLabel} • Classe ${cl} • Generato il ${new Date().toLocaleDateString("it-IT")}</div>
+            <div class="print-meta">A.S. ${annoLabel} • Classe ${cl} • Materia: ${materiaLabel} • Generato il ${new Date().toLocaleDateString("it-IT")}</div>
           </div>
 
           <div class="student-report-box">
             <h4>Dati Alunno e Supporto</h4>
-            <div><strong>Alunno:</strong> ${al.nome_cognome} &nbsp;|&nbsp; <strong>Classe:</strong> ${cl} &nbsp;|&nbsp; <strong>Anno Scolastico:</strong> ${annoLabel}</div>
+            <div><strong>Alunno:</strong> ${al.nome_cognome} &nbsp;|&nbsp; <strong>Classe:</strong> ${cl} &nbsp;|&nbsp; <strong>Anno Scolastico:</strong> ${annoLabel} &nbsp;|&nbsp; <strong>Filtro Materia:</strong> ${materiaLabel}</div>
             <div style="margin-top:4px;"><strong>Profilo:</strong> ${profiloText}</div>
             <div style="margin-top:4px;"><strong>Note / Misure:</strong> ${noteText}</div>
           </div>
 
           <div class="student-report-box">
-            <h4>Storico Verifiche e Annotazioni</h4>
+            <h4>Storico Verifiche e Annotazioni — ${materiaLabel}</h4>
             <table class="report-tbl">
               <thead>
                 <tr>
@@ -2063,7 +2075,7 @@
               <tbody>
                 ${eventiRows.length > 0
                   ? eventiRows.join("")
-                  : `<tr><td colspan="6">Nessuna registrazione presente per l'alunno nella classe ${cl}.</td></tr>`}
+                  : `<tr><td colspan="6">Nessuna registrazione presente per l'alunno (${materiaLabel}) nella classe ${cl}.</td></tr>`}
               </tbody>
             </table>
           </div>
