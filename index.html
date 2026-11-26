@@ -271,6 +271,24 @@
       font-weight: 700;
       cursor: pointer;
     }
+    .grid-open-btn.has-grid {
+      border-color: var(--pos);
+      background: rgba(48, 209, 88, 0.16);
+      color: #69e287;
+    }
+    .grid-chip {
+      display: inline-block;
+      margin-left: 5px;
+      padding: 1px 5px;
+      border-radius: 5px;
+      font-size: 10px;
+      font-weight: 700;
+      background: rgba(48, 209, 88, 0.16);
+      color: #69e287;
+      border: 1px solid rgba(48, 209, 88, 0.45);
+      cursor: pointer;
+      vertical-align: middle;
+    }
 
     /* Flag & Badge Supporto (DSA / 104 / BES) */
     .flag-group {
@@ -524,7 +542,7 @@
       }
     }
 
-    /* Nuvola (tooltip) su Annot. periodo / note supporto */
+    /* Nuvola (tooltip) su Annot. periodo / note supporto / dettaglio griglia */
     .nuvola-cell {
       position: relative;
       cursor: help;
@@ -607,7 +625,7 @@
       padding: 20px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.65);
     }
-    .modal-card.narrow-modal { max-width: 520px; }
+    .modal-card.narrow-modal { max-width: 540px; }
     .ind-box {
       margin-top: 12px;
       padding: 12px 14px;
@@ -760,6 +778,42 @@
         border: 1px solid #555 !important;
         background: #f2f2f2 !important;
         color: #111 !important;
+      }
+
+      /* Stili dedicati all'esportazione singolo studente (accesso agli atti) */
+      .student-report {
+        color: #000000;
+        font-size: 10.5px;
+        line-height: 1.4;
+      }
+      .student-report-box {
+        border: 1px solid #777;
+        padding: 8px 10px;
+        margin-bottom: 10px;
+        background: #fafafa;
+      }
+      .student-report-box h4 {
+        margin: 0 0 4px;
+        font-size: 11px;
+        text-transform: uppercase;
+      }
+      table.report-tbl {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        margin-bottom: 12px;
+        font-size: 9.5px;
+      }
+      table.report-tbl th, table.report-tbl td {
+        border: 1px solid #666 !important;
+        padding: 5px 6px !important;
+        text-align: left !important;
+        white-space: normal !important;
+        background: #fff !important;
+        color: #000 !important;
+      }
+      table.report-tbl th {
+        background: #ececec !important;
+        font-weight: 700;
       }
     }
   </style>
@@ -1038,6 +1092,7 @@
 
       <div class="row" style="margin-top:12px;">
         <button type="button" class="sec-btn" style="flex:1;padding:12px;" onclick="closeSchedaModal()">Chiudi</button>
+        <button type="button" class="sec-btn pdf" style="flex:1;padding:12px;" onclick="exportSingoloAlunnoPdf()">📄 PDF Alunno</button>
         <button id="sm-save-btn" type="button" class="primary-btn" style="flex:2;margin-top:0;" onclick="saveSchedaModal()">SALVA SCHEDA</button>
       </div>
     </div>
@@ -1115,7 +1170,7 @@
     </div>
   </div>
 
-  <!-- Nuvola flottante per dettaglio annotazioni periodo / note supporto -->
+  <!-- Nuvola flottante per dettaglio annotazioni periodo / note supporto / dettaglio griglia -->
   <div id="nuvola-tooltip" class="nuvola-box"></div>
 
   <div id="print-area"></div>
@@ -1124,6 +1179,7 @@
     const SUPABASE_URL = "https://dgdlldmskwkgummpdgnx.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_Yv8ob9MdEaYb9fcsavar8Q_nCLc0HX0";
     const ALLOWED_EMAIL = "paci.matt@ittmarconiforli.edu.it";
+    const GRIGLIE_STORAGE_KEY = "sm_griglie_valutazione_v1";
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const QUICK_NEG_BY_MATERIA = {
@@ -1181,6 +1237,92 @@
     let appInitialized = false;
 
     let singoloIscrizioniMap = new Map();
+
+    function readGriglieStore() {
+      try {
+        const raw = localStorage.getItem(GRIGLIE_STORAGE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch (_e) {
+        return {};
+      }
+    }
+
+    function writeGriglieStore(store) {
+      try {
+        localStorage.setItem(GRIGLIE_STORAGE_KEY, JSON.stringify(store));
+      } catch (_e) {
+        // Ignora eventuale quota piena
+      }
+    }
+
+    function buildGrigliaKey(iscId, dataEvento, materia, colId = null) {
+      if (colId) {
+        return `col_${colId}__isc_${iscId}`;
+      }
+      return `draft_${iscId}__${dataEvento || "nodate"}__${materia || "NOMAT"}`;
+    }
+
+    function normalizeGrigliaPayload(rawGriglia, fallbackMeta = {}) {
+      if (!rawGriglia || typeof rawGriglia !== "object" || typeof rawGriglia.base !== "number") {
+        return null;
+      }
+      return {
+        iscId: String(rawGriglia.iscId || fallbackMeta.iscId || ""),
+        colId: rawGriglia.colId ? String(rawGriglia.colId) : (fallbackMeta.colId ? String(fallbackMeta.colId) : null),
+        dataEvento: rawGriglia.dataEvento || fallbackMeta.dataEvento || "",
+        materia: rawGriglia.materia || fallbackMeta.materia || "",
+        argomento: rawGriglia.argomento || fallbackMeta.argomento || "",
+        i1: rawGriglia.i1 || "",
+        i2: rawGriglia.i2 || "",
+        i3: rawGriglia.i3 || "",
+        base: rawGriglia.base,
+        annotazioniPeriodo: typeof rawGriglia.annotazioniPeriodo === "number" ? rawGriglia.annotazioniPeriodo : 0,
+        proposta: rawGriglia.proposta || "",
+        votoFinale: rawGriglia.votoFinale || "",
+        updatedAt: rawGriglia.updatedAt || new Date().toISOString()
+      };
+    }
+
+    function saveGrigliaRecordToStore(iscId, dataEvento, materia, record, colId = null) {
+      const normalized = normalizeGrigliaPayload(record, { iscId, dataEvento, materia, colId });
+      if (!normalized) return;
+
+      const store = readGriglieStore();
+      const keyByCol = colId ? buildGrigliaKey(iscId, dataEvento, materia, colId) : null;
+      const keyByDraft = buildGrigliaKey(iscId, dataEvento, materia, null);
+
+      if (keyByCol) store[keyByCol] = normalized;
+      store[keyByDraft] = normalized;
+      writeGriglieStore(store);
+    }
+
+    function findGrigliaRecord(iscId, dataEvento, materia, colId = null, dbGrigliaJson = null) {
+      const fromDb = normalizeGrigliaPayload(dbGrigliaJson, { iscId, dataEvento, materia, colId });
+      if (fromDb) {
+        saveGrigliaRecordToStore(iscId, dataEvento, materia, fromDb, colId);
+        return fromDb;
+      }
+
+      const store = readGriglieStore();
+      if (colId) {
+        const kCol = buildGrigliaKey(iscId, dataEvento, materia, colId);
+        if (store[kCol]) return store[kCol];
+      }
+      const kDraft = buildGrigliaKey(iscId, dataEvento, materia, null);
+      if (store[kDraft]) return store[kDraft];
+
+      const candidates = Object.values(store).filter(item =>
+        item &&
+        String(item.iscId) === String(iscId) &&
+        (!dataEvento || item.dataEvento === dataEvento) &&
+        (!materia || item.materia === materia)
+      );
+      if (candidates.length === 0) return null;
+      candidates.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+      return candidates[0];
+    }
 
     function normalizeAlunnoRecord(raw) {
       return {
@@ -1664,7 +1806,7 @@
       }
       const { cl, iscr } = ultimoProspettoData;
       document.getElementById("sm-title").innerText = `Scheda Alunno — ${cl}`;
-      document.getElementById("sm-sub").innerText = "Modifica nome/cognome, flag DSA / 104 / BES e note";
+      document.getElementById("sm-sub").innerText = "Modifica dati, flag supporto o esporta il fascicolo singolo";
       document.getElementById("sm-status").innerText = "";
 
       const sel = document.getElementById("sm-alunno-select");
@@ -1779,6 +1921,158 @@
       } finally {
         btn.disabled = false;
       }
+    }
+
+    function exportSingoloAlunnoPdf() {
+      if (!ultimoProspettoData) {
+        alert("Seleziona prima una classe nel Prospetto.");
+        return;
+      }
+      const alunnoId = document.getElementById("sm-alunno-select").value;
+      const { cl, annoLabel, iscr, colList, mapReg } = ultimoProspettoData;
+      const iscItem = iscr.find(i => String(i.alunni.id) === String(alunnoId));
+      if (!iscItem) return;
+
+      const al = iscItem.alunni;
+      const badge = getAlunnoBadgeInfo(al);
+      const profiloText = badge ? badge.fullText : "Nessun profilo specifico (ordinario)";
+      const noteText = al.note_supporto ? al.note_supporto : "Nessuna nota particolare registrata.";
+
+      const eventiRows = [];
+      const griglieDettaglio = [];
+
+      for (const c of colList) {
+        const r = mapReg.get(`${iscItem.id}__${c.id}`);
+        if (!r) continue;
+
+        const dataEstesa = c.data_evento || "";
+        const materia = c.materia || "—";
+        const argomento = c.argomento || "—";
+
+        if (r.voto) {
+          const gr = findGrigliaRecord(iscItem.id, c.data_evento, c.materia, c.id, r.griglia_json);
+          const grigliaSintesi = gr && typeof gr.base === "number"
+            ? `Con. ${gr.i1 || "—"} + Ab. ${gr.i2 || "—"} + Comp. ${gr.i3 || "—"} = ${gr.base}/10`
+            : "Voto diretto / nessuna griglia salvata";
+
+          eventiRows.push(`
+            <tr>
+              <td>${dataEstesa}</td>
+              <td>Verifica</td>
+              <td>${materia}</td>
+              <td>${argomento}</td>
+              <td><strong>${r.voto}</strong></td>
+              <td>${grigliaSintesi}</td>
+            </tr>
+          `);
+
+          if (gr && typeof gr.base === "number") {
+            griglieDettaglio.push({
+              data: dataEstesa,
+              materia,
+              argomento,
+              gr
+            });
+          }
+        } else if (r.annotazione_punti !== null) {
+          const pts = Number(r.annotazione_punti);
+          const segno = pts > 0 ? `+${pts}` : `${pts}`;
+          const motivo = c.descrizione_negativa
+            ? c.descrizione_negativa
+            : (pts > 0 ? "Annotazione positiva" : "Annotazione negativa");
+          eventiRows.push(`
+            <tr>
+              <td>${dataEstesa}</td>
+              <td>Annotazione</td>
+              <td>${materia}</td>
+              <td>${motivo}</td>
+              <td><strong>${segno}</strong></td>
+              <td>Incidenza sul voto di periodo</td>
+            </tr>
+          `);
+        }
+      }
+
+      const griglieHtml = griglieDettaglio.length > 0
+        ? `<div class="student-report-box">
+            <h4>Dettaglio Griglie di Valutazione (Conoscenze / Abilità / Competenze)</h4>
+            <table class="report-tbl">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Materia / Argomento</th>
+                  <th>1. Conoscenze (max 3.0)</th>
+                  <th>2. Abilità (max 5.0)</th>
+                  <th>3. Competenze (max 2.0)</th>
+                  <th>Base / Ann. / Proposta / Finale</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${griglieDettaglio.map(item => {
+                  const g = item.gr;
+                  const d1 = g.i1 && RUBRICA_DESCRIZIONI.ind1[g.i1] ? ` — ${RUBRICA_DESCRIZIONI.ind1[g.i1]}` : "";
+                  const d2 = g.i2 && RUBRICA_DESCRIZIONI.ind2[g.i2] ? ` — ${RUBRICA_DESCRIZIONI.ind2[g.i2]}` : "";
+                  const d3 = g.i3 && RUBRICA_DESCRIZIONI.ind3[g.i3] ? ` — ${RUBRICA_DESCRIZIONI.ind3[g.i3]}` : "";
+                  return `
+                    <tr>
+                      <td>${item.data}</td>
+                      <td><strong>${item.materia}</strong>${item.argomento && item.argomento !== "—" ? `<br>${item.argomento}` : ""}</td>
+                      <td><strong>${g.i1 || "—"}</strong>${d1}</td>
+                      <td><strong>${g.i2 || "—"}</strong>${d2}</td>
+                      <td><strong>${g.i3 || "—"}</strong>${d3}</td>
+                      <td>Base: <strong>${g.base}</strong><br>Ann.: <strong>${formatSignedNumber(g.annotazioniPeriodo || 0)}</strong><br>Prop.: <strong>${g.proposta || "—"}</strong><br>Finale: <strong>${g.votoFinale || "—"}</strong></td>
+                    </tr>
+                  `;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>`
+        : `<div class="student-report-box">
+            <h4>Dettaglio Griglie di Valutazione</h4>
+            <div>Nessuna griglia analitica registrata per l'alunno.</div>
+          </div>`;
+
+      const printArea = document.getElementById("print-area");
+      printArea.innerHTML = `
+        <div class="print-page student-report">
+          <div class="print-header">
+            <div class="print-title">SchoolManager — Fascicolo Valutazioni Alunno (Accesso agli Atti)</div>
+            <div class="print-meta">A.S. ${annoLabel} • Classe ${cl} • Generato il ${new Date().toLocaleDateString("it-IT")}</div>
+          </div>
+
+          <div class="student-report-box">
+            <h4>Dati Alunno e Supporto</h4>
+            <div><strong>Alunno:</strong> ${al.nome_cognome} &nbsp;|&nbsp; <strong>Classe:</strong> ${cl} &nbsp;|&nbsp; <strong>Anno Scolastico:</strong> ${annoLabel}</div>
+            <div style="margin-top:4px;"><strong>Profilo:</strong> ${profiloText}</div>
+            <div style="margin-top:4px;"><strong>Note / Misure:</strong> ${noteText}</div>
+          </div>
+
+          <div class="student-report-box">
+            <h4>Storico Verifiche e Annotazioni</h4>
+            <table class="report-tbl">
+              <thead>
+                <tr>
+                  <th style="width:12%;">Data</th>
+                  <th style="width:13%;">Tipologia</th>
+                  <th style="width:14%;">Materia</th>
+                  <th style="width:23%;">Argomento / Motivazione</th>
+                  <th style="width:12%;">Esito</th>
+                  <th style="width:26%;">Riferimento Griglia / Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${eventiRows.length > 0
+                  ? eventiRows.join("")
+                  : `<tr><td colspan="6">Nessuna registrazione presente per l'alunno nella classe ${cl}.</td></tr>`}
+              </tbody>
+            </table>
+          </div>
+
+          ${griglieHtml}
+        </div>
+      `;
+
+      window.print();
     }
 
     async function addAlunniBatch() {
@@ -2027,6 +2321,30 @@
       box.style.left = `${left}px`;
     }
 
+    function showNuvolaGrigliaProspetto(el, iscId, colId, dataEvento, materia) {
+      const reg = ultimoProspettoData && ultimoProspettoData.mapReg
+        ? ultimoProspettoData.mapReg.get(`${iscId}__${colId}`)
+        : null;
+      const gr = findGrigliaRecord(iscId, dataEvento, materia, colId, reg ? reg.griglia_json : null);
+      if (!gr || typeof gr.base !== "number") return;
+      const box = document.getElementById("nuvola-tooltip");
+      box.innerHTML = `
+        <div style="font-weight:700;margin-bottom:4px;color:var(--pos);">Griglia Valutazione (${materia || "Lab"})</div>
+        <div class="nuvola-item">1. Conoscenze: <strong>${gr.i1 || "—"}</strong> / 3.0</div>
+        <div class="nuvola-item">2. Abilità: <strong>${gr.i2 || "—"}</strong> / 5.0</div>
+        <div class="nuvola-item">3. Competenze: <strong>${gr.i3 || "—"}</strong> / 2.0</div>
+        <div class="nuvola-item">Base: <strong>${gr.base}</strong> • Ann.: <strong>${formatSignedNumber(gr.annotazioniPeriodo || 0)}</strong></div>
+        <div class="nuvola-item">Proposta: <strong>${gr.proposta || "—"}</strong> • Finale: <strong>${gr.votoFinale || "—"}</strong></div>
+      `;
+      box.classList.add("visible");
+
+      const rect = el.getBoundingClientRect();
+      const top = Math.min(window.innerHeight - box.offsetHeight - 10, rect.bottom + 6);
+      const left = Math.min(window.innerWidth - box.offsetWidth - 10, Math.max(10, rect.left));
+      box.style.top = `${Math.max(10, top)}px`;
+      box.style.left = `${left}px`;
+    }
+
     function hideNuvola() {
       const box = document.getElementById("nuvola-tooltip");
       if (box) box.classList.remove("visible");
@@ -2057,6 +2375,8 @@
       if (griglia && typeof griglia.base === "number") {
         const finaleNum = roundToQuarter(griglia.base + ptsAnn);
         const propostaLabel = formatVotoMastercom(finaleNum);
+        griglia.annotazioniPeriodo = ptsAnn;
+        griglia.proposta = propostaLabel;
         if (propEl) {
           propEl.innerHTML = `<span class="proposta-badge">${propostaLabel}</span>`;
         }
@@ -2087,11 +2407,31 @@
     function openGrigliaModal(iscId, nomeAlunno) {
       activeModalIscId = iscId;
       activeModalNome = nomeAlunno;
-      const current = grigliaPerAlunno.get(iscId) || { i1: "", i2: "", i3: "", base: null };
-
-      document.getElementById("gm-title").innerText = `Griglia Lab — ${nomeAlunno}`;
       const mat = document.getElementById("v-materia").value;
       const dt = document.getElementById("v-data").value;
+
+      let current = grigliaPerAlunno.get(iscId);
+      if (!current) {
+        const regDb = activeVerificaColId
+          ? verificaRegsCache.find(r => String(r.colonna_id) === String(activeVerificaColId) && String(r.iscrizione_id) === String(iscId))
+          : null;
+        const stored = findGrigliaRecord(iscId, dt, mat, activeVerificaColId, regDb ? regDb.griglia_json : null);
+        if (stored && typeof stored.base === "number") {
+          current = {
+            i1: stored.i1 || "",
+            i2: stored.i2 || "",
+            i3: stored.i3 || "",
+            base: stored.base,
+            annotazioniPeriodo: stored.annotazioniPeriodo || 0,
+            proposta: stored.proposta || ""
+          };
+          grigliaPerAlunno.set(iscId, current);
+        } else {
+          current = { i1: "", i2: "", i3: "", base: null };
+        }
+      }
+
+      document.getElementById("gm-title").innerText = `Griglia Lab — ${nomeAlunno}`;
       document.getElementById("gm-sub").innerText = `Materia: ${mat} • Data verifica: ${dt || "-"}`;
 
       document.getElementById("gm-ind1").value = current.i1 || "";
@@ -2142,12 +2482,33 @@
       const s3 = document.getElementById("gm-ind3").value;
       const base = Math.round(((parseFloat(s1) || 0) + (parseFloat(s2) || 0) + (parseFloat(s3) || 0)) * 100) / 100;
 
-      grigliaPerAlunno.set(activeModalIscId, { i1: s1, i2: s2, i3: s3, base });
+      const materia = document.getElementById("v-materia").value;
+      const dataEvento = document.getElementById("v-data").value;
+      const argomento = document.getElementById("v-argomento").value.trim();
+      const det = getAnnotazioniPeriodoDettaglio(activeModalIscId, materia, dataEvento);
+      const propostaLabel = formatVotoMastercom(roundToQuarter(base + det.totale));
+
+      const record = {
+        i1: s1,
+        i2: s2,
+        i3: s3,
+        base,
+        annotazioniPeriodo: det.totale,
+        proposta: propostaLabel,
+        votoFinale: propostaLabel,
+        argomento
+      };
+
+      grigliaPerAlunno.set(activeModalIscId, record);
+      saveGrigliaRecordToStore(activeModalIscId, dataEvento, materia, record, activeVerificaColId);
 
       const tr = document.querySelector(`#v-tbody tr[data-isc-id="${activeModalIscId}"]`);
       if (tr) {
         const btn = tr.querySelector(".grid-open-btn");
-        if (btn) btn.innerText = `📋 ${base}`;
+        if (btn) {
+          btn.innerText = `📋 ${base}`;
+          btn.classList.add("has-grid");
+        }
         recalcRowVoto(tr);
       }
       closeGrigliaModal();
@@ -2161,7 +2522,10 @@
         tr.querySelector(".v-voto-select").value = "";
       });
       grigliaPerAlunno.clear();
-      document.querySelectorAll(".grid-open-btn").forEach(b => b.innerText = "📋 Griglia");
+      document.querySelectorAll(".grid-open-btn").forEach(b => {
+        b.innerText = "📋 Griglia";
+        b.classList.remove("has-grid");
+      });
       recalcAllVerificaRows();
     }
 
@@ -2178,17 +2542,34 @@
       if (ver.materia) document.getElementById("v-materia").value = ver.materia;
       document.getElementById("v-argomento").value = ver.argomento || "";
 
-      const votiSalvati = new Map();
+      const regByIsc = new Map();
       for (const r of verificaRegsCache) {
-        if (String(r.colonna_id) === String(ver.id) && r.voto) {
-          votiSalvati.set(String(r.iscrizione_id), r.voto);
+        if (String(r.colonna_id) === String(ver.id)) {
+          regByIsc.set(String(r.iscrizione_id), r);
         }
       }
+
+      grigliaPerAlunno.clear();
+      const materiaCorrente = document.getElementById("v-materia").value;
 
       document.querySelectorAll("#v-tbody tr").forEach(tr => {
         const iscId = tr.getAttribute("data-isc-id");
         const votoSelect = tr.querySelector(".v-voto-select");
-        votoSelect.value = votiSalvati.has(String(iscId)) ? votiSalvati.get(String(iscId)) : "";
+        const reg = regByIsc.get(String(iscId));
+        votoSelect.value = reg && reg.voto ? reg.voto : "";
+
+        const stored = findGrigliaRecord(iscId, ver.data_evento, materiaCorrente, ver.id, reg ? reg.griglia_json : null);
+        const btn = tr.querySelector(".grid-open-btn");
+        if (stored && typeof stored.base === "number") {
+          grigliaPerAlunno.set(iscId, stored);
+          if (btn) {
+            btn.innerText = `📋 ${stored.base}`;
+            btn.classList.add("has-grid");
+          }
+        } else if (btn) {
+          btn.innerText = "📋 Griglia";
+          btn.classList.remove("has-grid");
+        }
       });
 
       recalcAllVerificaRows();
@@ -2229,7 +2610,7 @@
         if (colIds.length > 0) {
           const { data: regs, error: regErr } = await sb
             .from("registrazioni")
-            .select("id, iscrizione_id, colonna_id, voto, annotazione_punti")
+            .select("id, iscrizione_id, colonna_id, voto, annotazione_punti, griglia_json")
             .in("colonna_id", colIds);
           if (regErr) throw new Error(regErr.message);
           verificaRegsCache = regs || [];
@@ -2314,9 +2695,22 @@
         const iscId = tr.getAttribute("data-isc-id");
         const voto = tr.querySelector(".v-voto-select").value.trim();
         if (!voto) continue;
+        const gr = grigliaPerAlunno.get(iscId) || findGrigliaRecord(iscId, dataEvento, materia, activeVerificaColId);
+        const grigliaJson = gr && typeof gr.base === "number"
+          ? normalizeGrigliaPayload({
+              ...gr,
+              iscId,
+              dataEvento,
+              materia,
+              argomento: argomento || "",
+              votoFinale: voto
+            })
+          : null;
+
         daSalvare.push({
           iscrizione_id: iscId,
-          voto
+          voto,
+          griglia_json: grigliaJson
         });
       }
 
@@ -2367,14 +2761,16 @@
             daAggiornare.push({
               id: regIdEsistente,
               voto: item.voto,
-              annotazione_punti: null
+              annotazione_punti: null,
+              griglia_json: item.griglia_json
             });
           } else {
             daInserire.push({
               iscrizione_id: item.iscrizione_id,
               colonna_id: colonnaVerId,
               voto: item.voto,
-              annotazione_punti: null
+              annotazione_punti: null,
+              griglia_json: item.griglia_json
             });
           }
         }
@@ -2387,9 +2783,18 @@
         for (const upd of daAggiornare) {
           const { error: updErr } = await sb
             .from("registrazioni")
-            .update({ voto: upd.voto, annotazione_punti: upd.annotazione_punti })
+            .update({ voto: upd.voto, annotazione_punti: upd.annotazione_punti, griglia_json: upd.griglia_json })
             .eq("id", upd.id);
           if (updErr) throw new Error(updErr.message);
+        }
+
+        for (const item of daSalvare) {
+          if (item.griglia_json) {
+            saveGrigliaRecordToStore(item.iscrizione_id, dataEvento, materia, {
+              ...item.griglia_json,
+              colId: String(colonnaVerId)
+            }, colonnaVerId);
+          }
         }
 
         activeVerificaColId = colonnaVerId;
@@ -2514,7 +2919,11 @@
             : "";
 
           if (r.voto) {
-            return `<td><strong>${r.voto}</strong>${delCellBtn}</td>`;
+            const gr = findGrigliaRecord(i.id, c.data_evento, c.materia, c.id, r.griglia_json);
+            const gridChip = gr && typeof gr.base === "number"
+              ? `<span class="grid-chip" title="Griglia salvata (${gr.base}/10)" onmouseenter="showNuvolaGrigliaProspetto(this, '${i.id}', '${c.id}', '${c.data_evento || ""}', '${(c.materia || "").replace(/'/g, "\\'")}')" onmouseleave="hideNuvola()" onclick="openVerificaFromProspetto('${c.id}')">📋 ${gr.base}</span>`
+              : "";
+            return `<td><strong>${r.voto}</strong>${gridChip}${delCellBtn}</td>`;
           }
           if (r.annotazione_punti !== null) {
             const isPos = r.annotazione_punti > 0;
@@ -2633,7 +3042,7 @@
 
         const { data: cols, error: colErr } = await sb
           .from("colonne_evento")
-          .select("id, data_evento, tipo, materia, verso_annotazione, descrizione_negativa, creato_il")
+          .select("id, data_evento, tipo, materia, argomento, verso_annotazione, descrizione_negativa, creato_il")
           .eq("classe_anno_id", classeAnnoId)
           .order("data_evento", { ascending: true })
           .order("creato_il", { ascending: true });
@@ -2645,7 +3054,7 @@
         if (colIds.length > 0) {
           const { data: regData, error: regErr } = await sb
             .from("registrazioni")
-            .select("id, iscrizione_id, colonna_id, voto, annotazione_punti")
+            .select("id, iscrizione_id, colonna_id, voto, annotazione_punti, griglia_json")
             .in("colonna_id", colIds);
           if (regErr) throw new Error(regErr.message);
           regs = regData || [];
