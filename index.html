@@ -598,7 +598,7 @@
     }
     .modal-card {
       width: 100%;
-      max-width: 660px;
+      max-width: 700px;
       max-height: 90vh;
       overflow-y: auto;
       background: var(--card);
@@ -610,21 +610,69 @@
     .modal-card.narrow-modal { max-width: 520px; }
     .ind-box {
       margin-top: 12px;
-      padding: 12px;
+      padding: 12px 14px;
       border-radius: 10px;
       background: var(--input-bg);
       border: 1px solid var(--border);
     }
+    .ind-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+    .ind-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+    .pill-conoscenze {
+      background: rgba(10, 132, 255, 0.18);
+      color: #70b5ff;
+      border: 1px solid rgba(10, 132, 255, 0.45);
+    }
+    .pill-abilita {
+      background: rgba(48, 209, 88, 0.16);
+      color: #69e287;
+      border: 1px solid rgba(48, 209, 88, 0.45);
+    }
+    .pill-competenze {
+      background: rgba(255, 159, 10, 0.18);
+      color: #ffb84d;
+      border: 1px solid rgba(255, 159, 10, 0.45);
+    }
+    .ind-max {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--muted);
+    }
     .ind-title {
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 700;
       color: var(--text);
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
     .ind-sub {
-      font-size: 11px;
+      font-size: 11.5px;
       color: var(--muted);
       margin-bottom: 8px;
+      line-height: 1.4;
+    }
+    .ind-desc {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #18181a;
+      border-left: 3px solid var(--accent);
+      font-size: 12px;
+      line-height: 1.4;
+      color: #e5e5ea;
     }
     .preview-box {
       margin-top: 14px;
@@ -995,46 +1043,67 @@
     </div>
   </div>
 
-  <!-- MODALE GRIGLIA VALUTAZIONE ATTIVITÀ DI LABORATORIO (DIP. MECCANICA) -->
+  <!-- MODALE GRIGLIA VALUTAZIONE ATTIVITÀ DI LABORATORIO (CONOSCENZE / ABILITÀ / COMPETENZE) -->
   <div id="griglia-modal" class="modal-backdrop hidden">
     <div class="modal-card">
       <h2 id="gm-title">Griglia Laboratorio</h2>
       <div id="gm-sub" class="ind-sub" style="text-align:center;"></div>
 
+      <!-- 1. CONOSCENZE -->
       <div class="ind-box">
-        <div class="ind-title">1. Disegni, norme tecniche/sicurezza, termodinamica/elettrotecnica/idraulica, cicli e parametri (max 3.0)</div>
+        <div class="ind-header">
+          <span class="ind-pill pill-conoscenze">1. Conoscenze</span>
+          <span class="ind-max">Peso massimo: 3.0 pt</span>
+        </div>
+        <div class="ind-title">Teoria, norme tecniche e di sicurezza, principi (termodinamica, elettrotecnica, idraulica), cicli e parametri</div>
+        <div class="ind-sub">Valuta cosa sa e ricorda l'alunno su regole, concetti tecnici, sicurezza e impostazioni teoriche.</div>
         <select id="gm-ind1" onchange="updateModalPreview()">
-          <option value="">-- Seleziona livello --</option>
-          <option value="0.6">0.6 — Inesistenti / molto lacunose e frammentarie</option>
-          <option value="1.1">1.1 — Lacunose, superficiali</option>
-          <option value="1.7">1.7 — Semplici ma adeguate, non sempre precise</option>
-          <option value="2.4">2.4 — Precise ed esaurienti</option>
-          <option value="3.0">3.0 — Complete e approfondite</option>
+          <option value="">-- Seleziona livello Conoscenze --</option>
+          <option value="0.6">0.6 — Gravemente lacunose (nozioni assenti o frammentarie)</option>
+          <option value="1.1">1.1 — Insufficienti (nozioni superficiali con errori)</option>
+          <option value="1.7">1.7 — Essenziali / adeguate (basi corrette ma semplici)</option>
+          <option value="2.4">2.4 — Buone / precise (quadro chiaro e normativamente corretto)</option>
+          <option value="3.0">3.0 — Ottime / complete (padronanza completa e approfondita)</option>
         </select>
+        <div id="gm-desc1" class="ind-desc hidden"></div>
       </div>
 
+      <!-- 2. ABILITÀ -->
       <div class="ind-box">
-        <div class="ind-title">2. Strumentazione, macchine utensili tradizionali/CN, pannelli pneumatici/elettropneumatici, CAD/software, relazione (max 5.0)</div>
+        <div class="ind-header">
+          <span class="ind-pill pill-abilita">2. Abilità</span>
+          <span class="ind-max">Peso massimo: 5.0 pt</span>
+        </div>
+        <div class="ind-title">Uso pratico di strumenti, macchine utensili tradizionali/CN, pannelli pneumatici/elettropneumatici, CAD/software e relazione</div>
+        <div class="ind-sub">Valuta come esegue in pratica le operazioni tecniche, la cura esecutiva e il grado di autonomia operativa.</div>
         <select id="gm-ind2" onchange="updateModalPreview()">
-          <option value="">-- Seleziona livello --</option>
-          <option value="1.0">1.0 — Molto lacunose e frammentarie anche con assistenza</option>
-          <option value="1.4">1.4 — Superficiali e imprecise (continua assistenza)</option>
-          <option value="3.1">3.1 — Semplici ma adeguate (saltuari aiuti)</option>
-          <option value="4.0">4.0 — Precise ed esaurienti (notevole autonomia)</option>
-          <option value="5.0">5.0 — Complete e approfondite (del tutto autonomo)</option>
+          <option value="">-- Seleziona livello Abilità --</option>
+          <option value="1.0">1.0 — Gravemente carenti (esecuzione bloccata o non autonoma)</option>
+          <option value="1.4">1.4 — Insufficienti (imprecisioni frequenti, serve guida continua)</option>
+          <option value="3.1">3.1 — Essenziali / adeguate (esecuzione corretta con saltuari aiuti)</option>
+          <option value="4.0">4.0 — Buone / autonome (operatività ordinata e precisa con buona autonomia)</option>
+          <option value="5.0">5.0 — Ottime / pienamente autonome (esecuzione accurata e autonoma)</option>
         </select>
+        <div id="gm-desc2" class="ind-desc hidden"></div>
       </div>
 
+      <!-- 3. COMPETENZE -->
       <div class="ind-box">
-        <div class="ind-title">3. Tecniche di misura, programmazione, controllo, parametri e teorie collegate (max 2.0)</div>
+        <div class="ind-header">
+          <span class="ind-pill pill-competenze">3. Competenze</span>
+          <span class="ind-max">Peso massimo: 2.0 pt</span>
+        </div>
+        <div class="ind-title">Integrazione teoria-pratica: controllo misure, impostazione/verifica parametri, programmazione e gestione criticità</div>
+        <div class="ind-sub">Valuta come mette insieme conoscenze e abilità in situazione reale per controllare il lavoro e risolvere problemi.</div>
         <select id="gm-ind3" onchange="updateModalPreview()">
-          <option value="">-- Seleziona livello --</option>
-          <option value="0.3">0.3 — Inesistenti / molto lacunose e frammentarie</option>
-          <option value="0.6">0.6 — Limitate, superficiali e mnemoniche</option>
-          <option value="1.2">1.2 — Estese, semplici, con qualche carenza ma adeguate</option>
-          <option value="1.6">1.6 — Precise ed esaurienti</option>
-          <option value="2.0">2.0 — Complete e approfondite</option>
+          <option value="">-- Seleziona livello Competenze --</option>
+          <option value="0.3">0.3 — Non raggiunte (non applica regole e criteri al caso pratico)</option>
+          <option value="0.6">0.6 — Limitate (applicazione solo mnemonica o guidata)</option>
+          <option value="1.2">1.2 — Adeguate (gestione corretta su casi operativi standard)</option>
+          <option value="1.6">1.6 — Buone (controllo consapevole e adattamento efficace)</option>
+          <option value="2.0">2.0 — Avanzate (piena autonomia decisionale, controllo e verifica)</option>
         </select>
+        <div id="gm-desc3" class="ind-desc hidden"></div>
       </div>
 
       <div id="gm-preview" class="preview-box"></div>
@@ -1071,6 +1140,30 @@
       DISEGNO: [
         { label: "💻 RISPETTO PC", desc: "Rispetto PC" }
       ]
+    };
+
+    const RUBRICA_DESCRIZIONI = {
+      ind1: {
+        "0.6": "Conoscenze molto lacunose o assenti: non individua norme, sicurezza, cicli o parametri di base.",
+        "1.1": "Conoscenze superficiali e frammentarie: riconosce solo pochi elementi con incertezze o errori.",
+        "1.7": "Conoscenze essenziali ma adeguate: coglie le regole, i cicli e i parametri principali in modo corretto.",
+        "2.4": "Conoscenze buone e precise: espone e applica norme, cicli e parametri in modo chiaro e ordinato.",
+        "3.0": "Conoscenze complete e approfondite: padroneggia con sicurezza teoria, norme, cicli e parametri."
+      },
+      ind2: {
+        "1.0": "Abilità gravemente carenti: non riesce a operare su strumenti, macchine, pannelli o software anche se guidato.",
+        "1.4": "Abilità insufficienti: l'uso di strumenti, macchine o software è incerto e richiede assistenza continua.",
+        "3.1": "Abilità essenziali ma adeguate: esegue le operazioni pratiche in modo corretto con supporto solo occasionale.",
+        "4.0": "Abilità buone e autonome: opera con sicurezza e precisione su strumenti, macchine, pannelli o CAD/relazione.",
+        "5.0": "Abilità ottime e pienamente autonome: esecuzione precisa, pulita e sicura senza bisogno di aiuti."
+      },
+      ind3: {
+        "0.3": "Competenze non raggiunte: non collega teoria e pratica né verifica misure o parametri durante l'attività.",
+        "0.6": "Competenze limitate: replica passaggi o misure solo se guidato, senza verificare la coerenza del risultato.",
+        "1.2": "Competenze adeguate: controlla misure, parametri o programmazione in modo coerente su prove standard.",
+        "1.6": "Competenze buone: verifica criticamente misure e parametri e corregge eventuali scostamenti in autonomia.",
+        "2.0": "Competenze avanzate: integra teoria, misura, programmazione e controllo con piena padronanza operativa."
+      }
     };
 
     let selezioneAnnotazione = { verso: "neg", desc: null, quickIndex: null };
@@ -1979,6 +2072,18 @@
       document.querySelectorAll("#v-tbody tr").forEach(tr => recalcRowVoto(tr));
     }
 
+    function syncIndicatoreDesc(key, val, descId) {
+      const box = document.getElementById(descId);
+      const text = val && RUBRICA_DESCRIZIONI[key] ? RUBRICA_DESCRIZIONI[key][val] : "";
+      if (!text) {
+        box.classList.add("hidden");
+        box.innerText = "";
+        return;
+      }
+      box.innerText = text;
+      box.classList.remove("hidden");
+    }
+
     function openGrigliaModal(iscId, nomeAlunno) {
       activeModalIscId = iscId;
       activeModalNome = nomeAlunno;
@@ -2003,9 +2108,17 @@
     }
 
     function updateModalPreview() {
-      const v1 = parseFloat(document.getElementById("gm-ind1").value) || 0;
-      const v2 = parseFloat(document.getElementById("gm-ind2").value) || 0;
-      const v3 = parseFloat(document.getElementById("gm-ind3").value) || 0;
+      const s1 = document.getElementById("gm-ind1").value;
+      const s2 = document.getElementById("gm-ind2").value;
+      const s3 = document.getElementById("gm-ind3").value;
+
+      syncIndicatoreDesc("ind1", s1, "gm-desc1");
+      syncIndicatoreDesc("ind2", s2, "gm-desc2");
+      syncIndicatoreDesc("ind3", s3, "gm-desc3");
+
+      const v1 = parseFloat(s1) || 0;
+      const v2 = parseFloat(s2) || 0;
+      const v3 = parseFloat(s3) || 0;
       const base = Math.round((v1 + v2 + v3) * 100) / 100;
 
       const materia = document.getElementById("v-materia").value;
@@ -2016,7 +2129,7 @@
       const propostaLabel = formatVotoMastercom(finaleNum);
 
       document.getElementById("gm-preview").innerHTML = `
-        <div>Base griglia: <strong>${base}/10</strong></div>
+        <div>Base griglia (Con. + Ab. + Comp.): <strong>${base}/10</strong></div>
         <div>Annotazioni periodo: <strong>${formatSignedNumber(ptsAnn)}</strong></div>
         <div>Proposta voto: <strong style="color:var(--pos);font-size:15px;">${propostaLabel}</strong></div>
       `;
